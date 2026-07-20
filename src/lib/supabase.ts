@@ -1,16 +1,14 @@
 import { createClient } from "@supabase/supabase-js";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "https://placeholder.supabase.co";
+const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "placeholder";
 const service = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Public client (RLS-scoped, anon read)
-export const supabase = createClient(url!, anon!, { auth: { persistSession: false } });
+export const supabase = createClient(url, anon, { auth: { persistSession: false } });
 
 // Admin client (service role bypasses RLS — server-only, never expose to browser)
-export const supabaseAdmin = service
-  ? createClient(url!, service!, { auth: { persistSession: false } })
-  : supabase;
+export const supabaseAdmin = service ? createClient(url, service, { auth: { persistSession: false } }) : supabase;
 
 export type AssetType = "skill" | "plugin" | "cli" | "mcp" | "design";
 export interface Asset {

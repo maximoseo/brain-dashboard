@@ -7,7 +7,7 @@ const SESSION_SECRET = process.env.BRAIN_SESSION_SECRET || "";
 const PROTECTED_PAGES = ["/", "/overview", "/inventory", "/bots", "/dashboards", "/knowledge", "/memory"];
 
 // Routes that are public (login page, static assets)
-const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico", "/api/health", "/api/auth"];
+const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico"];
 
 function verifySession(token: string): boolean {
   if (!SESSION_SECRET) return false;
@@ -15,7 +15,6 @@ function verifySession(token: string): boolean {
     const decoded = Buffer.from(token, "base64").toString();
     const [timestamp, hash] = decoded.split(".");
     if (!timestamp || !hash) return false;
-    // Session valid for 24h
     if (Date.now() - parseInt(timestamp) > 24 * 60 * 60 * 1000) return false;
     const expected = Buffer.from(SESSION_SECRET).toString("base64").slice(0, 32);
     const a = Buffer.from(hash);
@@ -34,26 +33,14 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow API health check
-  if (pathname === "/api/health") {
+  // API routes handle their own auth — skip middleware
+  if (pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
 
-  // Allow API sync (has its own auth via BRAIN_SYNC_SECRET)
-  if (pathname === "/api/sync") {
-    return NextResponse.next();
-  }
-
-  // Allow POST to memory (has its own auth)
-  if (pathname === "/api/memory" && req.method === "POST") {
-    return NextResponse.next();
-  }
-
-  // Check if this is an API route that needs protection
-  const isApiRoute = pathname.startsWith("/api/");
+  // Check if this is a protected page
   const isProtectedPage = PROTECTED_PAGES.some(p => pathname === p || pathname.startsWith(p + "/"));
-
-  if (!isApiRoute && !isProtectedPage) {
+  if (!isProtectedPage) {
     return NextResponse.next();
   }
 
@@ -63,11 +50,7 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
-  // Redirect to login for pages, return 401 for API
-  if (isApiRoute) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
+  // Redirect to login
   const loginUrl = new URL("/login", req.url);
   loginUrl.searchParams.set("next", pathname);
   return NextResponse.redirect(loginUrl);

@@ -35,7 +35,7 @@ async function withTimeout<T>(p: Promise<T>, ms = 3000): Promise<T> {
 async function searchSupermemory(q: string): Promise<Result[]> {
   const key = process.env.SUPERMEMORY_API_KEY; if (!key) return [];
   return withTimeout(fetch("https://api.supermemory.ai/v3/search", {
-    method: "POST", headers: { Authorization: *** ${key}`, "Content-Type": "application/json" },
+    method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ q, limit: 10 }),
   }).then(r => r.json()).then((d: any) => (d.results||d||[]).map((x: any) => ({
     source: "supermemory", title: x.title || (x.content||"").slice(0,80), snippet: (x.content||"").slice(0,200), url: safeUrl(x.url), score: x.score||0.7,
@@ -51,7 +51,7 @@ async function searchMem0(q: string): Promise<Result[]> {
 
 async function searchObsidian(q: string): Promise<Result[]> {
   const url = process.env.OBSIDIAN_API_URL; const key = process.env.OBSIDIAN_API_KEY; if (!url || !key) return [];
-  return withTimeout(fetch(`${url}/search/simple/?query=${encodeURIComponent(q)}&contextLength=50`, { headers: { Authorization: *** ${key}` } })
+  return withTimeout(fetch(`${url}/search/simple/?query=${encodeURIComponent(q)}&contextLength=50`, { headers: { Authorization: `Bearer ${key}` } })
     .then(r => r.json()).then((d: any) => (Array.isArray(d)?d:[]).slice(0,10).map((x: any) => ({
       source: "obsidian", title: x.filename || x.file?.path, snippet: (x.excerpt||x.snippet||"").slice(0,200), url: safeUrl(x.file?.path), score: 0.75,
     }))));

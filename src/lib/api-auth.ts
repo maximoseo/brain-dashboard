@@ -7,7 +7,8 @@ const SESSION_SECRET = process.env.BRAIN_SESSION_SECRET || "";
 function verifySession(token: string): boolean {
   if (!SESSION_SECRET) return false;
   try {
-    const decoded = Buffer.from(token, "base64").toString();
+    const decodedToken = decodeURIComponent(token);
+    const decoded = Buffer.from(decodedToken, "base64").toString();
     const [timestamp, hash] = decoded.split(".");
     if (!timestamp || !hash) return false;
     if (Date.now() - parseInt(timestamp) > 24 * 60 * 60 * 1000) return false;

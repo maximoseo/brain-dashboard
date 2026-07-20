@@ -15,7 +15,14 @@ export async function POST(req: NextRequest) {
   if (body.assets.length > MAX_ASSETS) return Response.json({ error: `max ${MAX_ASSETS} assets per sync` }, { status: 413 });
 
   const rows = body.assets
-    .filter(a => a.type && a.name && a.type.length <= 20 && a.name.length <= 200)
+    .filter(a => {
+      if (!a.type || !a.name) return false;
+      if (a.type.length > 20 || a.name.length > 200) return false;
+      // Reject names that are only box-drawing characters or whitespace
+      const printable = a.name.replace(/[\s┏━┳┗┛┃│└┐┌┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬─│┄┆┈┊╌╎╭╮╯╰]/g, "");
+      if (printable.length < 2) return false;
+      return true;
+    })
     .map(a => ({
       type: a.type, name: a.name, owner: (a.owner || body.bot || "unknown").slice(0, 100),
       description: (a.description || null), source: (a.source || null), version: (a.version || null),

@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
 import { supabase, supabaseAdmin } from "../../../lib/supabase";
 import { checkSync } from "../../../lib/auth";
+import { checkApiKey, unauthorized } from "../../../lib/api-auth";
 
 export async function GET(req: NextRequest) {
+  if (!checkApiKey(req)) return unauthorized();
+
   const scope = req.nextUrl.searchParams.get("scope") || "global";
   const { data, error } = await supabase
     .from("brain_memory_facts").select("*").eq("scope", scope).order("key");

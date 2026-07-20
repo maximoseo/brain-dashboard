@@ -33,17 +33,30 @@ export default function Page() {
   const [knQuery, setKnQuery] = useState("");
   const [knResults, setKnResults] = useState<any[]>([]);
   const [knLoading, setKnLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastSync, setLastSync] = useState<string | null>(null);
   const PER_PAGE = 24;
 
   const load = useCallback(async (v: View) => {
-    if (v === "knowledge") { setData({}); return; }
+    if (v === "knowledge") { setData({}); setError(null); return; }
     setLoading(true);
+    setError(null);
     const map: Partial<Record<View, string>> = {
       overview: "/api/inventory", inventory: "/api/inventory", bots: "/api/bots",
       dashboards: "/api/dashboards", memory: "/api/memory?scope=global",
     };
     const ep = map[v];
-    if (ep) { try { const r = await fetch(ep); setData(await r.json()); } catch {} }
+    if (ep) {
+      try {
+        const r = await fetch(ep);
+        if (!r.ok) throw new Error(`HTTP ${r.status}: ${r.statusText}`);
+        setData(await r.json());
+        setLastSync(new Date().toISOString());
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load data");
+        setData({});
+      }
+    }
     setLoading(false);
   }, []);
 
@@ -58,13 +71,56 @@ export default function Page() {
   assets.forEach(a => { if (counts[a.type] !== undefined) counts[a.type]++; });
 
   const paged = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+
+  // Export to CSV
+  function exportCSV() {
+    const headers = ["type", "name", "owner", "description", "source", "version", "enabled"];
+    const rows = filtered.map(a => [
+      a.type, a.name, a.owner, (a.description || "").replace(/"/g, '""'),
+      a.source || "", a.version || "", a.enabled ? "true" : "false"
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `brain-inventory-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Export to JSON
+  function exportJSON() {
+    const blob = new Blob([JSON.stringify(filtered, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `brain-inventory-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
 
   async function runKnowledge() {
     if (!knQuery.trim()) return;
     setKnLoading(true);
-    try { const r = await fetch(`/api/knowledge?q=${encodeURIComponent(knQuery)}`); const d = await r.json(); setKnResults(d.results || []); } catch {}
+    setError(null);
+    try {
+      const r = await fetch(`/api/knowledge?q=${encodeURIComponent(knQuery)}`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = await r.json();
+      setKnResults(d.results || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Knowledge search failed");
+      setKnResults([]);
+    }
     setKnLoading(false);
+  }
+
+  // Debounced search
+  function debounceSearch(value: string) {
+    setSearch(value);
+    setPage(0);
   }
 
   return (
@@ -89,7 +145,10 @@ export default function Page() {
             </button>
           ))}
         </nav>
-        <div className="sb-footer">v1.0 · {new Date().getFullYear()}</div>
+        <div className="sb-footer">
+          <div>v1.0 · {new Date().getFullYear()}</div>
+          {lastSync && <div className="sb-sync">עודכן: {new Date(lastSync).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" })}</div>}
+        </div>
       </aside>
 
       {/* Mobile nav */}
@@ -104,8 +163,27 @@ export default function Page() {
         ))}
       </div>
 
+      {/* Mobile bottom nav */}
+      <nav className="mobile-bottom-nav">
+        {NAV.map(n => (
+          <button key={n.id} className={`mbn-item ${view === n.id ? "active" : ""}`} onClick={() => setView(n.id)}>
+            <span className="mbn-icon">{n.icon}</span>
+            <span className="mbn-label">{n.label}</span>
+          </button>
+        ))}
+      </nav>
+
       {/* Main */}
       <main className="main">
+        {/* Error banner */}
+        {error && (
+          <div className="error-banner" role="alert">
+            <span>⚠️</span>
+            <span>{error}</span>
+            <button onClick={() => setError(null)} aria-label="Dismiss">✕</button>
+          </div>
+        )}
+
         {view === "overview" && (
           <>
             <div className="page-head">
@@ -144,8 +222,19 @@ export default function Page() {
             <div className="page-head">
               <div className="page-title">📦 Inventory — כל הנכסים</div>
               <div className="page-desc">כל מה שמותקן אצל הבוטים. לחץ על סוג כדי לסנן, או חפש בשם.</div>
+              {lastSync && <div className="last-sync">עודכן לאחרונה: {new Date(lastSync).toLocaleString("he-IL")}</div>}
             </div>
-            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (
+            {loading ? (
+              <div className="skeleton-grid">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="skeleton-card">
+                    <div className="skeleton-line" style={{ width: "60%" }} />
+                    <div className="skeleton-line" style={{ width: "90%" }} />
+                    <div className="skeleton-line" style={{ width: "40%" }} />
+                  </div>
+                ))}
+              </div>
+            ) : (
               <>
                 <div className="toolbar">
                   <button className={`chip ${!filter ? "active" : ""}`} onClick={() => { setFilter(""); setPage(0); }}>הכל<span className="n">{assets.length}</span></button>
@@ -154,7 +243,11 @@ export default function Page() {
                       {TYPE_INFO[t].icon} {TYPE_INFO[t].label}<span className="n">{counts[t]}</span>
                     </button>
                   ))}
-                  <input className="field" placeholder="🔍 חיפוש לפי שם או תיאור..." value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} />
+                  <input className="field" placeholder="🔍 חיפוש לפי שם או תיאור..." value={search} onChange={e => debounceSearch(e.target.value)} />
+                  <div className="export-btns">
+                    <button className="chip" onClick={exportCSV} title="Export as CSV">📥 CSV</button>
+                    <button className="chip" onClick={exportJSON} title="Export as JSON">📥 JSON</button>
+                  </div>
                 </div>
                 {paged.length === 0 ? (
                   <div className="empty"><div className="empty-icon">📭</div><div className="empty-text">אין תוצאות</div></div>
@@ -195,7 +288,17 @@ export default function Page() {
               <div className="page-title">🤖 Bots — הבוטים שלנו</div>
               <div className="page-desc">כל בוט שמחובר לBrain. כל בוט מסנכרן את הנכסים שלו לכאן אוטומטית.</div>
             </div>
-            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (data.bots || []).length === 0 ? (
+            {loading ? (
+              <div className="skeleton-grid">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="skeleton-card">
+                    <div className="skeleton-line" style={{ width: "40%" }} />
+                    <div className="skeleton-line" style={{ width: "80%" }} />
+                    <div className="skeleton-line" style={{ width: "60%" }} />
+                  </div>
+                ))}
+              </div>
+            ) : (data.bots || []).length === 0 ? (
               <div className="empty"><div className="empty-icon">🤖</div><div className="empty-text">אין בוטים רשומים עדיין</div><div className="empty-hint">הרץ connector כדי לרשום בוט</div></div>
             ) : (
               <div className="bot-grid">
@@ -224,7 +327,17 @@ export default function Page() {
               <div className="page-title">📊 Dashboards — כל הדשבורדים</div>
               <div className="page-desc">כל הדשבורדים שלנו במקום אחד.</div>
             </div>
-            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (data.dashboards || []).length === 0 ? (
+            {loading ? (
+              <div className="skeleton-grid">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="skeleton-card">
+                    <div className="skeleton-line" style={{ width: "40%" }} />
+                    <div className="skeleton-line" style={{ width: "80%" }} />
+                    <div className="skeleton-line" style={{ width: "60%" }} />
+                  </div>
+                ))}
+              </div>
+            ) : (data.dashboards || []).length === 0 ? (
               <div className="empty"><div className="empty-icon">📊</div><div className="empty-text">אין דשבורדים רשומים</div></div>
             ) : (
               <div className="bot-grid">
@@ -276,7 +389,17 @@ export default function Page() {
               <div className="page-title">🧠 Memory — עובדות שמורות</div>
               <div className="page-desc">עובדות שהבוטים שומרים לטווח ארוך. כל בוט יכול לקרוא ולכתוב לכאן.</div>
             </div>
-            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (data.facts || []).length === 0 ? (
+            {loading ? (
+              <div className="skeleton-grid">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="skeleton-card">
+                    <div className="skeleton-line" style={{ width: "40%" }} />
+                    <div className="skeleton-line" style={{ width: "80%" }} />
+                    <div className="skeleton-line" style={{ width: "60%" }} />
+                  </div>
+                ))}
+              </div>
+            ) : (data.facts || []).length === 0 ? (
               <div className="empty"><div className="empty-icon">🧠</div><div className="empty-text">אין עובדות שמורות עדיין</div><div className="empty-hint">בוטים יכולים לשמור עובדות דרך POST /api/memory</div></div>
             ) : (
               <div className="grid">

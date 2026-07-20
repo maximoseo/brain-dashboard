@@ -1,7 +1,10 @@
 import { NextRequest } from "next/server";
 import { supabase, type AssetType } from "../../../lib/supabase";
+import { checkApiKey, unauthorized } from "../../../lib/api-auth";
 
 export async function GET(req: NextRequest) {
+  if (!checkApiKey(req)) return unauthorized();
+
   const type = req.nextUrl.searchParams.get("type") as AssetType | null;
   const owner = req.nextUrl.searchParams.get("owner");
 
@@ -17,12 +20,19 @@ export async function GET(req: NextRequest) {
   for (const a of data || []) {
     (grouped[a.type] ||= []).push(a);
   }
-  return Response.json({
-    skills: grouped.skill || [],
-    plugins: grouped.plugin || [],
-    cli: grouped.cli || [],
-    mcp: grouped.mcp || [],
-    designs: grouped.design || [],
-    _all: data,
-  });
+  return Response.json(
+    {
+      skills: grouped.skill || [],
+      plugins: grouped.plugin || [],
+      cli: grouped.cli || [],
+      mcp: grouped.mcp || [],
+      designs: grouped.design || [],
+      _all: data,
+    },
+    {
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+      },
+    },
+  );
 }

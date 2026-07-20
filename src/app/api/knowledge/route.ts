@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { supabase } from "../../../lib/supabase";
+import { checkApiKey, unauthorized } from "../../../lib/api-auth";
 
 interface Result { source: string; title: string; snippet: string; url?: string; score?: number; }
 
@@ -57,6 +58,8 @@ async function searchObsidian(q: string): Promise<Result[]> {
 }
 
 export async function GET(req: NextRequest) {
+  if (!checkApiKey(req)) return unauthorized();
+
   const rawQ = req.nextUrl.searchParams.get("q");
   if (!rawQ) return Response.json({ error: "q required" }, { status: 400 });
   const q = sanitizeQ(rawQ);

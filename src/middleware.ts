@@ -7,7 +7,7 @@ const SESSION_SECRET = process.env.BRAIN_SESSION_SECRET || "";
 const PROTECTED_PAGES = ["/", "/overview", "/inventory", "/bots", "/dashboards", "/knowledge", "/memory"];
 
 // Routes that are public (login page, static assets)
-const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico", "/api/health"];
+const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico", "/api/health", "/api/auth"];
 
 function verifySession(token: string): boolean {
   if (!SESSION_SECRET) return false;

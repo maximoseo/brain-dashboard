@@ -1,262 +1,295 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 
-type View = "inventory" | "bots" | "dashboards" | "processes" | "knowledge" | "memory" | "search";
-const VIEWS: { id: View; label: string }[] = [
-  { id: "inventory", label: "Inventory" },
-  { id: "bots", label: "Bots" },
-  { id: "dashboards", label: "Dashboards" },
-  { id: "processes", label: "Processes" },
-  { id: "knowledge", label: "Knowledge" },
-  { id: "memory", label: "Memory" },
-  { id: "search", label: "Search" },
+type View = "overview" | "inventory" | "bots" | "dashboards" | "knowledge" | "memory";
+
+const NAV: { id: View; icon: string; label: string; desc: string }[] = [
+  { id: "overview", icon: "◆", label: "Overview", desc: "סקירה כללית של המערכת" },
+  { id: "inventory", icon: "📦", label: "Inventory", desc: "כל הסקילים, CLI, MCP, עיצובים" },
+  { id: "bots", icon: "🤖", label: "Bots", desc: "הבוטים שמחוברים למערכת" },
+  { id: "dashboards", icon: "📊", label: "Dashboards", desc: "כל הדשבורדים שלנו" },
+  { id: "knowledge", icon: "🔍", label: "Knowledge", desc: "חיפוש מאוחד ב-Obsidian, mem0, ועוד" },
+  { id: "memory", icon: "🧠", label: "Memory", desc: "עובדות שמורות לטווח ארוך" },
 ];
 
 interface Asset { id: string; type: string; name: string; owner: string; description: string; source: string; version: string; enabled: boolean; }
 interface Bot { id: string; name: string; kind: string; status: string; model: string; base_url: string; last_seen: string; }
-interface Dashboard { id: string; name: string; url: string; category: string; status: string; icon: string; }
-interface Fact { id: string; key: string; value: string; scope: string; source: string; }
-interface KnResult { source: string; title: string; snippet: string; url?: string; score?: number; }
+
+const TYPE_INFO: Record<string, { icon: string; label: string; color: string; desc: string }> = {
+  skill: { icon: "⚡", label: "Skills", color: "var(--primary-light)", desc: "הוראות שמאפשרות לAI לבצע משימות מורכבות (כמו מתכון)" },
+  plugin: { icon: "🔌", label: "Plugins", color: "var(--accent)", desc: "תוספים שמרחיבים יכולות הבוט (אינטגרציות, כלים)" },
+  cli: { icon: "⌨️", label: "CLI Tools", color: "var(--green)", desc: "כלי שורת פקודה מותקנים על השרת (stripe, gh, ffmpeg...)" },
+  mcp: { icon: "🔗", label: "MCP Servers", color: "var(--accent-2)", desc: "Model Context Protocol - מקשר API חיצוני לבוט" },
+  design: { icon: "🎨", label: "Designs", color: "var(--yellow)", desc: "סקילים לעיצוב וביקורת UI" },
+};
 
 export default function Page() {
-  const [view, setView] = useState<View>("inventory");
+  const [view, setView] = useState<View>("overview");
   const [data, setData] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState("");
   const [search, setSearch] = useState("");
-  const [knResults, setKnResults] = useState<KnResult[]>([]);
+  const [page, setPage] = useState(0);
   const [knQuery, setKnQuery] = useState("");
+  const [knResults, setKnResults] = useState<any[]>([]);
   const [knLoading, setKnLoading] = useState(false);
+  const PER_PAGE = 24;
 
   const load = useCallback(async (v: View) => {
+    if (v === "overview" || v === "knowledge") { setData({}); return; }
     setLoading(true);
-    try {
-      const map: Record<View, string> = {
-        inventory: "/api/inventory", bots: "/api/bots", dashboards: "/api/dashboards",
-        processes: "/api/processes", memory: "/api/memory?scope=global", knowledge: "", search: "",
-      };
-      const ep = map[v];
-      if (ep) {
-        const r = await fetch(ep);
-        const d = await r.json();
-        setData(d);
-      }
-    } catch {}
+    const map: Partial<Record<View, string>> = {
+      inventory: "/api/inventory", bots: "/api/bots", dashboards: "/api/dashboards",
+      memory: "/api/memory?scope=global",
+    };
+    const ep = map[v];
+    if (ep) { try { const r = await fetch(ep); setData(await r.json()); } catch {} }
     setLoading(false);
   }, []);
 
-  useEffect(() => { load(view); }, [view, load]);
+  useEffect(() => { load(view); setPage(0); setFilter(""); setSearch(""); }, [view, load]);
 
   const assets: Asset[] = data._all || [];
   const filtered = assets.filter(a =>
     (!filter || a.type === filter) &&
     (!search || a.name.toLowerCase().includes(search.toLowerCase()) || (a.description || "").toLowerCase().includes(search.toLowerCase()))
   );
-  const counts = {
-    skill: assets.filter(a => a.type === "skill").length,
-    plugin: assets.filter(a => a.type === "plugin").length,
-    cli: assets.filter(a => a.type === "cli").length,
-    mcp: assets.filter(a => a.type === "mcp").length,
-    design: assets.filter(a => a.type === "design").length,
-  };
+  const counts = { skill: 0, plugin: 0, cli: 0, mcp: 0, design: 0 } as Record<string, number>;
+  assets.forEach(a => { if (counts[a.type] !== undefined) counts[a.type]++; });
+
+  const paged = filtered.slice(page * PER_PAGE, (page + 1) * PER_PAGE);
+  const totalPages = Math.ceil(filtered.length / PER_PAGE);
 
   async function runKnowledge() {
     if (!knQuery.trim()) return;
     setKnLoading(true);
-    try {
-      const r = await fetch(`/api/knowledge?q=${encodeURIComponent(knQuery)}`);
-      const d = await r.json();
-      setKnResults(d.results || []);
-    } catch {}
+    try { const r = await fetch(`/api/knowledge?q=${encodeURIComponent(knQuery)}`); const d = await r.json(); setKnResults(d.results || []); } catch {}
     setKnLoading(false);
   }
 
   return (
-    <div className="app">
-      <header>
-        <div className="brand">
-          <div className="brand-mark"></div>
-          <div>
-            <div className="brand-name">Brain<span> Registry</span></div>
-            <div className="brand-sub">Agent ecosystem · single source of truth</div>
+    <div className="layout">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sb-brand">
+          <div className="sb-logo">
+            <div className="sb-mark"></div>
+            <div>
+              <div className="sb-title">Brain<span>Registry</span></div>
+              <div className="sb-tagline">מוח מרכזי לכל הבוטים</div>
+            </div>
           </div>
         </div>
-        <div className="tabs">
-          {VIEWS.map(v => (
-            <button key={v.id} className={`tab ${view === v.id ? "active" : ""}`} onClick={() => setView(v.id)}>
-              {v.label}
+        <nav className="sb-nav">
+          {NAV.map(n => (
+            <button key={n.id} className={`sb-item ${view === n.id ? "active" : ""}`} onClick={() => setView(n.id)} title={n.desc}>
+              <span className="sb-icon">{n.icon}</span>
+              {n.label}
+              {n.id === "inventory" && assets.length > 0 && <span className="sb-count">{assets.length}</span>}
             </button>
           ))}
-        </div>
-      </header>
+        </nav>
+        <div className="sb-footer">v1.0 · {new Date().getFullYear()}</div>
+      </aside>
 
-      <main>
-        {loading && <div className="loading">Loading…</div>}
+      {/* Mobile nav */}
+      <div className="mobile-head">
+        <div className="sb-logo"><div className="sb-mark"></div><div className="sb-title">Brain<span>Registry</span></div></div>
+      </div>
+      <div className="mobile-nav">
+        {NAV.map(n => (
+          <button key={n.id} className={`sb-item ${view === n.id ? "active" : ""}`} onClick={() => setView(n.id)}>
+            <span className="sb-icon">{n.icon}</span>{n.label}
+          </button>
+        ))}
+      </div>
 
-        {view === "inventory" && !loading && (
+      {/* Main */}
+      <main className="main">
+        {view === "overview" && (
           <>
+            <div className="page-head">
+              <div className="page-title">סקירה כללית</div>
+              <div className="page-desc">זה המוח המרכזי של כל מערכת הAI שלנו. כאן נשמר כל מה שהבוטים יודעים ויש להם — סקילים, כלים, עיצובים, תהליכים וזיכרון. כל בוט (Hermes, OpenClaw) מתחבר לכאן כדי לדעת מה זמין.</div>
+            </div>
             <div className="stats">
-              <div className="stat"><div className="stat-val">{counts.skill}</div><div className="stat-label">Skills</div></div>
-              <div className="stat"><div className="stat-val">{counts.plugin}</div><div className="stat-label">Plugins</div></div>
-              <div className="stat"><div className="stat-val">{counts.cli}</div><div className="stat-label">CLI Tools</div></div>
-              <div className="stat"><div className="stat-val">{counts.mcp}</div><div className="stat-label">MCP Servers</div></div>
-              <div className="stat"><div className="stat-val">{counts.design}</div><div className="stat-label">Designs</div></div>
+              {(Object.keys(TYPE_INFO) as string[]).map(t => (
+                <div key={t} className="stat" onClick={() => { setView("inventory"); setFilter(t); }} style={{ cursor: "pointer" }}>
+                  <div className="stat-icon">{TYPE_INFO[t].icon}</div>
+                  <div className="stat-val">{counts[t]}</div>
+                  <div className="stat-label">{TYPE_INFO[t].label}</div>
+                  <div className="stat-desc">{TYPE_INFO[t].desc}</div>
+                </div>
+              ))}
             </div>
             <div className="card">
-              <div className="filters">
-                <button className={`filter ${!filter ? "active" : ""}`} onClick={() => setFilter("")}>All ({assets.length})</button>
-                {(["skill","plugin","cli","mcp","design"] as const).map(t => (
-                  <button key={t} className={`filter ${filter === t ? "active" : ""}`} onClick={() => setFilter(t)}>{t} ({counts[t]})</button>
-                ))}
-                <input className="search" placeholder="Search assets…" value={search} onChange={e => setSearch(e.target.value)} />
-              </div>
-              {filtered.length === 0 ? (
-                <div className="empty">No assets yet. Run a bot sync or seed the ecosystem.</div>
-              ) : (
-                <table className="tbl">
-                  <thead><tr><th>Name</th><th>Type</th><th>Owner</th><th>Source</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {filtered.slice(0, 100).map(a => (
-                      <tr key={a.id}>
-                        <td><strong>{a.name}</strong>{a.description && <><br /><span style={{fontSize:10,color:"var(--text-muted)"}}>{a.description.slice(0,60)}</span></>}</td>
-                        <td><span className={`tag ${a.type}`}>{a.type}</span></td>
-                        <td>{a.owner}</td>
-                        <td>{a.source ? <a href={a.source} target="_blank">link</a> : "—"}</td>
-                        <td>{a.enabled ? <span style={{color:"var(--success)"}}>on</span> : <span style={{color:"var(--text-muted)"}}>off</span>}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </>
-        )}
-
-        {view === "bots" && !loading && (
-          <div className="card">
-            <h2>Fleet ({(data.bots || []).length})</h2>
-            {(data.bots || []).length === 0 ? <div className="empty">No bots registered.</div> : (
-              <div className="bot-grid">
-                {(data.bots || []).map((b: Bot) => (
-                  <div key={b.id} className="bot-card">
-                    <div className="bot-name">{b.name}</div>
-                    <div className="bot-model">{b.model || "—"}</div>
-                    <div className="bot-status"><span className="dot"></span>{b.status || "unknown"}</div>
-                    <div style={{fontSize:10,color:"var(--text-muted)",marginTop:6}}>
-                      {b.last_seen ? `seen ${new Date(b.last_seen).toLocaleString()}` : "never"}
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 10 }}>מה זה כל דבר?</div>
+              <div className="legend">
+                {(Object.keys(TYPE_INFO) as string[]).map(t => (
+                  <div key={t} className="legend-item">
+                    <div className="legend-dot" style={{ background: TYPE_INFO[t].color }}></div>
+                    <div className="legend-text">
+                      <strong>{TYPE_INFO[t].icon} {TYPE_INFO[t].label}</strong>
+                      <span>{TYPE_INFO[t].desc}</span>
                     </div>
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          </>
         )}
 
-        {view === "dashboards" && !loading && (
-          <div className="card">
-            <h2>Dashboards ({(data.dashboards || []).length})</h2>
-            {(data.dashboards || []).length === 0 ? <div className="empty">No dashboards registered.</div> : (
-              <table className="tbl">
-                <thead><tr><th>Name</th><th>Category</th><th>Status</th><th>URL</th></tr></thead>
-                <tbody>
-                  {(data.dashboards || []).map((d: Dashboard) => (
-                    <tr key={d.id}>
-                      <td><strong>{d.name}</strong></td>
-                      <td>{d.category || "—"}</td>
-                      <td>{d.status}</td>
-                      <td><a href={d.url} target="_blank">open →</a></td>
-                    </tr>
+        {view === "inventory" && (
+          <>
+            <div className="page-head">
+              <div className="page-title">📦 Inventory — כל הנכסים</div>
+              <div className="page-desc">כל מה שמותקן אצל הבוטים. לחץ על סוג כדי לסנן, או חפש בשם.</div>
+            </div>
+            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (
+              <>
+                <div className="toolbar">
+                  <button className={`chip ${!filter ? "active" : ""}`} onClick={() => { setFilter(""); setPage(0); }}>הכל<span className="n">{assets.length}</span></button>
+                  {(Object.keys(TYPE_INFO) as string[]).map(t => (
+                    <button key={t} className={`chip ${filter === t ? "active" : ""}`} onClick={() => { setFilter(t); setPage(0); }}>
+                      {TYPE_INFO[t].icon} {TYPE_INFO[t].label}<span className="n">{counts[t]}</span>
+                    </button>
                   ))}
-                </tbody>
-              </table>
+                  <input className="field" placeholder="🔍 חיפוש לפי שם או תיאור..." value={search} onChange={e => { setSearch(e.target.value); setPage(0); }} />
+                </div>
+                {paged.length === 0 ? (
+                  <div className="empty"><div className="empty-icon">📭</div><div className="empty-text">אין תוצאות</div></div>
+                ) : (
+                  <div className="grid">
+                    {paged.map(a => (
+                      <div key={a.id} className="item">
+                        <div className="item-head">
+                          <div className="item-name">{a.name}</div>
+                          <span className={`item-type ${a.type}`}>{a.type}</span>
+                        </div>
+                        <div className="item-desc">{a.description || (TYPE_INFO[a.type]?.desc ?? "—")}</div>
+                        <div className="item-meta">
+                          <span>👤 {a.owner}</span>
+                          {a.version && <span>🏷️ {a.version}</span>}
+                          <span>{a.enabled ? "✅ פעיל" : "⏸️ כבוי"}</span>
+                        </div>
+                        {a.source && a.source.startsWith("http") && <a className="item-link" href={a.source} target="_blank">קישור →</a>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {totalPages > 1 && (
+                  <div className="pager">
+                    <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0}>← הקודם</button>
+                    <span className="info">עמוד {page + 1} מ-{totalPages} · {filtered.length} סה"כ</span>
+                    <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1}>הבא →</button>
+                  </div>
+                )}
+              </>
             )}
-          </div>
+          </>
         )}
 
-        {view === "processes" && !loading && (
-          <div className="card">
-            <h2>Processes ({(data.processes || []).length})</h2>
-            {(data.processes || []).length === 0 ? <div className="empty">No processes documented yet.</div> : (
-              (data.processes || []).map((p: any) => (
-                <div key={p.id} style={{marginBottom:14,paddingBottom:14,borderBottom:"1px solid var(--border)"}}>
-                  <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{p.title}</div>
-                  <div style={{fontSize:11,color:"var(--text-muted)"}}>{new Date(p.updated_at).toLocaleDateString()} · {(p.tags||[]).join(", ")}</div>
-                  <pre style={{fontSize:12,color:"var(--text-2)",marginTop:6,whiteSpace:"pre-wrap",fontFamily:"var(--mono)"}}>{(p.body||"").slice(0,300)}…</pre>
-                </div>
-              ))
+        {view === "bots" && (
+          <>
+            <div className="page-head">
+              <div className="page-title">🤖 Bots — הבוטים שלנו</div>
+              <div className="page-desc">כל בוט שמחובר לBrain. כל בוט מסנכרן את הנכסים שלו לכאן אוטומטית.</div>
+            </div>
+            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (data.bots || []).length === 0 ? (
+              <div className="empty"><div className="empty-icon">🤖</div><div className="empty-text">אין בוטים רשומים עדיין</div><div className="empty-hint">הרץ connector כדי לרשום בוט</div></div>
+            ) : (
+              <div className="bot-grid">
+                {(data.bots || []).map((b: Bot) => (
+                  <div key={b.id} className="bot">
+                    <div className="bot-head">
+                      <div className="bot-avatar">{b.kind === "hermes" ? "⚡" : b.kind === "openclaw" ? "🦞" : "🤖"}</div>
+                      <div>
+                        <div className="bot-name">{b.name}</div>
+                        <div className="bot-kind">{b.kind}</div>
+                      </div>
+                    </div>
+                    <div className="bot-row"><span>מצב</span><span><span className={`status-dot ${b.status || "online"}`}></span>{b.status || "online"}</span></div>
+                    <div className="bot-row"><span>מודל</span><span>{b.model || "—"}</span></div>
+                    <div className="bot-row"><span>נראה לאחרונה</span><span>{b.last_seen ? new Date(b.last_seen).toLocaleString("he-IL") : "—"}</span></div>
+                  </div>
+                ))}
+              </div>
             )}
-          </div>
+          </>
+        )}
+
+        {view === "dashboards" && (
+          <>
+            <div className="page-head">
+              <div className="page-title">📊 Dashboards — כל הדשבורדים</div>
+              <div className="page-desc">כל הדשבורדים שלנו במקום אחד.</div>
+            </div>
+            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (data.dashboards || []).length === 0 ? (
+              <div className="empty"><div className="empty-icon">📊</div><div className="empty-text">אין דשבורדים רשומים</div></div>
+            ) : (
+              <div className="bot-grid">
+                {(data.dashboards || []).map((d: any) => (
+                  <div key={d.id} className="bot" style={{ cursor: "pointer" }} onClick={() => window.open(d.url, "_blank")}>
+                    <div className="bot-head">
+                      <div className="bot-avatar">{d.icon || "📊"}</div>
+                      <div><div className="bot-name">{d.name}</div><div className="bot-kind">{d.category || "—"}</div></div>
+                    </div>
+                    <div className="bot-row"><span>סטטוס</span><span>{d.status || "—"}</span></div>
+                    <div className="bot-row"><span>קישור</span><span style={{ color: "var(--primary-light)" }}>פתח →</span></div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
 
         {view === "knowledge" && (
-          <div className="card">
-            <h2>Federated Knowledge Search</h2>
-            <p style={{fontSize:11,color:"var(--text-muted)",marginBottom:12}}>Searches Obsidian, Supermemory, mem0, Hermes memory, and local assets in parallel.</p>
-            <div style={{display:"flex",gap:8,marginBottom:16}}>
-              <input
-                className="search" style={{flex:1}}
-                placeholder="What do we know about…"
-                value={knQuery}
-                onChange={e => setKnQuery(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && runKnowledge()}
-              />
-              <button onClick={runKnowledge} className="filter active" style={{padding:"7px 16px"}}>Search</button>
+          <>
+            <div className="page-head">
+              <div className="page-title">🔍 Knowledge — חיפוש ידע מאוחד</div>
+              <div className="page-desc">מחפש בכל מקורות הידע במקביל: Obsidian (המאגר שלך), mem0, Supermemory, והזיכרון המקומי. התוצאות מקובצות לפי מקור.</div>
             </div>
-            {knLoading && <div className="loading">Querying sources…</div>}
-            {!knLoading && knResults.length === 0 && knQuery && <div className="empty">No results.</div>}
-            {knResults.map((r, i) => (
-              <div key={i} className="kn-result">
-                <div className="kn-source">{r.source}</div>
-                <div className="kn-title">{r.title || "(untitled)"}</div>
-                <div className="kn-snippet">{r.snippet}</div>
-                {r.url && <a href={r.url} target="_blank" style={{fontSize:11}}>open →</a>}
+            <div className="card">
+              <div className="kn-bar">
+                <input className="field" placeholder="מה אתה רוצה לדעת? לדוגמא: PromptForge, OpenClaw, SEO..." value={knQuery} onChange={e => setKnQuery(e.target.value)} onKeyDown={e => e.key === "Enter" && runKnowledge()} />
+                <button className="chip active" onClick={runKnowledge}>חפש</button>
               </div>
-            ))}
-          </div>
+              {knLoading && <div className="empty"><div className="empty-text">מחפש במקורות...</div></div>}
+              {!knLoading && knResults.length === 0 && knQuery && <div className="empty"><div className="empty-icon">🔍</div><div className="empty-text">לא נמצאו תוצאות</div></div>}
+              {knResults.map((r, i) => (
+                <div key={i} className={`kn-result ${r.source}`}>
+                  <div className="kn-top">
+                    <span className="kn-badge">{r.source}</span>
+                  </div>
+                  <div className="kn-title">{r.title || "(ללא כותרת)"}</div>
+                  <div className="kn-snippet">{r.snippet}</div>
+                  {r.url && <a href={r.url} target="_blank" style={{ fontSize: 11, color: "var(--primary-light)", marginTop: 6, display: "inline-block" }}>פתח →</a>}
+                </div>
+              ))}
+            </div>
+          </>
         )}
 
-        {view === "memory" && !loading && (
-          <div className="card">
-            <h2>Memory Facts ({(data.facts || []).length})</h2>
-            {(data.facts || []).length === 0 ? <div className="empty">No facts stored.</div> : (
-              <table className="tbl">
-                <thead><tr><th>Key</th><th>Value</th><th>Source</th></tr></thead>
-                <tbody>
-                  {(data.facts || []).map((f: Fact) => (
-                    <tr key={f.id}>
-                      <td><strong>{f.key}</strong></td>
-                      <td style={{fontFamily:"var(--mono)",fontSize:11}}>{f.value}</td>
-                      <td>{f.source || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        {view === "memory" && (
+          <>
+            <div className="page-head">
+              <div className="page-title">🧠 Memory — עובדות שמורות</div>
+              <div className="page-desc">עובדות שהבוטים שומרים לטווח ארוך. כל בוט יכול לקרוא ולכתוב לכאן.</div>
+            </div>
+            {loading ? <div className="empty"><div className="empty-text">טוען...</div></div> : (data.facts || []).length === 0 ? (
+              <div className="empty"><div className="empty-icon">🧠</div><div className="empty-text">אין עובדות שמורות עדיין</div><div className="empty-hint">בוטים יכולים לשמור עובדות דרך POST /api/memory</div></div>
+            ) : (
+              <div className="grid">
+                {(data.facts || []).map((f: any) => (
+                  <div key={f.id} className="item">
+                    <div className="item-head"><div className="item-name">{f.key}</div></div>
+                    <div className="item-desc" style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{f.value}</div>
+                    <div className="item-meta"><span>👤 {f.source || "—"}</span><span>📍 {f.scope}</span></div>
+                  </div>
+                ))}
+              </div>
             )}
-          </div>
-        )}
-
-        {view === "search" && (
-          <div className="card">
-            <h2>Global Search</h2>
-            <div style={{display:"flex",gap:8,marginBottom:16}}>
-              <input
-                className="search" style={{flex:1}}
-                placeholder="Search everything…"
-                value={knQuery}
-                onChange={e => setKnQuery(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && runKnowledge()}
-              />
-              <button onClick={runKnowledge} className="filter active" style={{padding:"7px 16px"}}>Search</button>
-            </div>
-            {knLoading && <div className="loading">Searching…</div>}
-            {knResults.map((r, i) => (
-              <div key={i} className="kn-result">
-                <div className="kn-source">{r.source}</div>
-                <div className="kn-title">{r.title || "(untitled)"}</div>
-                <div className="kn-snippet">{r.snippet}</div>
-              </div>
-            ))}
-          </div>
+          </>
         )}
       </main>
     </div>

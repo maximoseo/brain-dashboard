@@ -21,8 +21,8 @@ export async function POST(req: NextRequest) {
 
     // Generate session token
     const timestamp = Date.now().toString();
-    const hash = Buffer.from(SESSION_SECRET || "default-secret").toString("base64").slice(0, 32);
-    const token = Buffer.from(`${timestamp}.${hash}`).toString("base64");
+    const hash = btoa(SESSION_SECRET || "default-secret").slice(0, 32);
+    const token = btoa(`${timestamp}.${hash}`);
 
     const res = NextResponse.json({ ok: true });
     res.cookies.set("brain_session", token, {

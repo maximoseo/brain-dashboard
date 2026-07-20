@@ -1,21 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { timingSafeEqual } from "crypto";
 
 const SYNC_SECRET = process.env.BRAIN_SYNC_SECRET || "";
 const SESSION_SECRET = process.env.BRAIN_SESSION_SECRET || "";
+
+// Edge-runtime compatible constant-time comparison
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
 
 function verifySession(token: string): boolean {
   if (!SESSION_SECRET) return false;
   try {
     const decodedToken = decodeURIComponent(token);
-    const decoded = Buffer.from(decodedToken, "base64").toString();
+    const decoded = atob(decodedToken);
     const [timestamp, hash] = decoded.split(".");
     if (!timestamp || !hash) return false;
     if (Date.now() - parseInt(timestamp) > 24 * 60 * 60 * 1000) return false;
-    const expected = Buffer.from(SESSION_SECRET).toString("base64").slice(0, 32);
-    const a = Buffer.from(hash);
-    const b = Buffer.from(expected);
-    return a.length === b.length && timingSafeEqual(a, b);
+    const expected = btoa(SESSION_SECRET).slice(0, 32);
+    return constantTimeEqual(hash, expected);
   } catch {
     return false;
   }
@@ -30,9 +37,7 @@ export function checkApiKey(req: NextRequest): boolean {
   if (!SYNC_SECRET) return false;
   const key = req.headers.get("x-api-key") || req.nextUrl.searchParams.get("key") || "";
   if (!key) return false;
-  const a = Buffer.from(key);
-  const b = Buffer.from(SYNC_SECRET);
-  return a.length === b.length && timingSafeEqual(a, b);
+  return constantTimeEqual(key, SYNC_SECRET);
 }
 
 export function unauthorized() {

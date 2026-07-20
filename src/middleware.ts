@@ -12,7 +12,6 @@ const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico"];
 function verifySession(token: string): boolean {
   if (!SESSION_SECRET) return false;
   try {
-    // URL decode the token (cookies may be URL-encoded)
     const decodedToken = decodeURIComponent(token);
     const decoded = Buffer.from(decodedToken, "base64").toString();
     const [timestamp, hash] = decoded.split(".");
@@ -48,6 +47,17 @@ export function middleware(req: NextRequest) {
 
   // Check for session cookie
   const session = req.cookies.get("brain_session")?.value;
+  
+  // Debug logging (only in development)
+  if (process.env.NODE_ENV === "development") {
+    console.log("Middleware:", {
+      pathname,
+      hasSession: !!session,
+      sessionPrefix: session ? session.slice(0, 20) : null,
+      sessionSecretSet: !!SESSION_SECRET,
+    });
+  }
+  
   if (session && verifySession(session)) {
     return NextResponse.next();
   }

@@ -36,11 +36,11 @@ export default function Page() {
   const PER_PAGE = 24;
 
   const load = useCallback(async (v: View) => {
-    if (v === "overview" || v === "knowledge") { setData({}); return; }
+    if (v === "knowledge") { setData({}); return; }
     setLoading(true);
     const map: Partial<Record<View, string>> = {
-      inventory: "/api/inventory", bots: "/api/bots", dashboards: "/api/dashboards",
-      memory: "/api/memory?scope=global",
+      overview: "/api/inventory", inventory: "/api/inventory", bots: "/api/bots",
+      dashboards: "/api/dashboards", memory: "/api/memory?scope=global",
     };
     const ep = map[v];
     if (ep) { try { const r = await fetch(ep); setData(await r.json()); } catch {} }
@@ -263,7 +263,7 @@ export default function Page() {
                   </div>
                   <div className="kn-title">{r.title || "(ללא כותרת)"}</div>
                   <div className="kn-snippet">{r.snippet}</div>
-                  {r.url && <a href={r.url} target="_blank" style={{ fontSize: 11, color: "var(--primary-light)", marginTop: 6, display: "inline-block" }}>פתח →</a>}
+                  {r.url && r.url.startsWith("http") && <a href={r.url} target="_blank" style={{ fontSize: 11, color: "var(--primary-light)", marginTop: 6, display: "inline-block" }}>פתח →</a>}
                 </div>
               ))}
             </div>

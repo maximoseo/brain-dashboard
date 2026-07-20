@@ -8,7 +8,7 @@ interface Result { source: string; title: string; snippet: string; url?: string;
 
 async function searchSupabaseMemory(q: string): Promise<Result[]> {
   const { data } = await supabase
-    .from("memory_facts").select("*").ilike("value", `%${q}%`).limit(10);
+    .from("brain_memory_facts").select("*").ilike("value", `%${q}%`).limit(10);
   return (data || []).map((f: any) => ({
     source: "memory", title: f.key, snippet: f.value?.slice(0, 200), score: 0.9,
   }));
@@ -16,7 +16,7 @@ async function searchSupabaseMemory(q: string): Promise<Result[]> {
 
 async function searchAssets(q: string): Promise<Result[]> {
   const { data } = await supabase
-    .from("assets").select("*").or(`name.ilike.%${q}%,description.ilike.%${q}%`).limit(15);
+    .from("brain_assets").select("*").or(`name.ilike.%${q}%,description.ilike.%${q}%`).limit(15);
   return (data || []).map((a: any) => ({
     source: a.type, title: a.name, snippet: a.description?.slice(0, 200) || a.source, url: a.source, score: 0.8,
   }));
@@ -24,7 +24,7 @@ async function searchAssets(q: string): Promise<Result[]> {
 
 async function searchProcesses(q: string): Promise<Result[]> {
   const { data } = await supabase
-    .from("processes").select("*").or(`title.ilike.%${q}%,body.ilike.%${q}%`).limit(10);
+    .from("brain_processes").select("*").or(`title.ilike.%${q}%,body.ilike.%${q}%`).limit(10);
   return (data || []).map((p: any) => ({
     source: "process", title: p.title, snippet: p.body?.slice(0, 200), score: 0.85,
   }));

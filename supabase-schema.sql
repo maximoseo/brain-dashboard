@@ -1,4 +1,4 @@
-create table if not exists assets (
+create table if not exists brain_assets (
   id uuid primary key default gen_random_uuid(),
   type text not null check (type in ('skill','plugin','cli','mcp','design')),
   name text not null,
@@ -12,10 +12,10 @@ create table if not exists assets (
   updated_at timestamptz default now(),
   unique (type, name, owner)
 );
-create index if not exists assets_type_idx on assets (type);
-create index if not exists assets_owner_idx on assets (owner);
+create index if not exists assets_type_idx on brain_assets (type);
+create index if not exists assets_owner_idx on brain_assets (owner);
 
-create table if not exists bots (
+create table if not exists brain_bots (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
   kind text not null,
@@ -27,7 +27,7 @@ create table if not exists bots (
   created_at timestamptz default now()
 );
 
-create table if not exists dashboards (
+create table if not exists brain_dashboards (
   id uuid primary key default gen_random_uuid(),
   name text unique not null,
   url text not null,
@@ -37,7 +37,7 @@ create table if not exists dashboards (
   created_at timestamptz default now()
 );
 
-create table if not exists processes (
+create table if not exists brain_processes (
   id uuid primary key default gen_random_uuid(),
   title text not null,
   slug text unique not null,
@@ -47,7 +47,7 @@ create table if not exists processes (
   updated_at timestamptz default now()
 );
 
-create table if not exists memory_facts (
+create table if not exists brain_memory_facts (
   id uuid primary key default gen_random_uuid(),
   key text not null,
   value text not null,
@@ -57,7 +57,7 @@ create table if not exists memory_facts (
   unique (scope, key)
 );
 
-create table if not exists sync_log (
+create table if not exists brain_sync_log (
   id bigserial primary key,
   bot text not null,
   endpoint text,
@@ -67,22 +67,22 @@ create table if not exists sync_log (
 );
 
 -- RLS: anon read on all, service role write (Supabase service key bypasses RLS)
-alter table assets enable row level security;
-alter table bots enable row level security;
-alter table dashboards enable row level security;
-alter table processes enable row level security;
-alter table memory_facts enable row level security;
-alter table sync_log enable row level security;
+alter table brain_assets enable row level security;
+alter table brain_bots enable row level security;
+alter table brain_dashboards enable row level security;
+alter table brain_processes enable row level security;
+alter table brain_memory_facts enable row level security;
+alter table brain_sync_log enable row level security;
 
-drop policy if exists "anon read assets" on assets;
-create policy "anon read assets" on assets for select using (true);
-drop policy if exists "anon read bots" on bots;
-create policy "anon read bots" on bots for select using (true);
-drop policy if exists "anon read dashboards" on dashboards;
-create policy "anon read dashboards" on dashboards for select using (true);
-drop policy if exists "anon read processes" on processes;
-create policy "anon read processes" on processes for select using (true);
-drop policy if exists "anon read memory" on memory_facts;
-create policy "anon read memory" on memory_facts for select using (true);
-drop policy if exists "anon read sync_log" on sync_log;
-create policy "anon read sync_log" on sync_log for select using (true);
+drop policy if exists "anon read assets" on brain_assets;
+create policy "anon read assets" on brain_assets for select using (true);
+drop policy if exists "anon read bots" on brain_bots;
+create policy "anon read bots" on brain_bots for select using (true);
+drop policy if exists "anon read dashboards" on brain_dashboards;
+create policy "anon read dashboards" on brain_dashboards for select using (true);
+drop policy if exists "anon read processes" on brain_processes;
+create policy "anon read processes" on brain_processes for select using (true);
+drop policy if exists "anon read memory" on brain_memory_facts;
+create policy "anon read memory" on brain_memory_facts for select using (true);
+drop policy if exists "anon read sync_log" on brain_sync_log;
+create policy "anon read sync_log" on brain_sync_log for select using (true);

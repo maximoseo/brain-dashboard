@@ -5,7 +5,7 @@ export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get("type") as AssetType | null;
   const owner = req.nextUrl.searchParams.get("owner");
 
-  let q = supabase.from("assets").select("*").order("type").order("name");
+  let q = supabase.from("brain_assets").select("*").order("type").order("name");
   if (type) q = q.eq("type", type);
   if (owner) q = q.eq("owner", owner);
 

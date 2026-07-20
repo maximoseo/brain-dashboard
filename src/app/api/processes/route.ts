@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { supabase } from "../../../lib/supabase";
 export async function GET() {
-  const { data, error } = await supabase.from("processes").select("*").order("updated_at", { ascending: false });
+  const { data, error } = await supabase.from("brain_processes").select("*").order("updated_at", { ascending: false });
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ processes: data });
 }

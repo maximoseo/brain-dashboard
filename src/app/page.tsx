@@ -1,8 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 
-export const dynamic = "force-dynamic";
-
 type View = "inventory" | "bots" | "dashboards" | "processes" | "knowledge" | "memory" | "search";
 const VIEWS: { id: View; label: string }[] = [
   { id: "inventory", label: "Inventory" },

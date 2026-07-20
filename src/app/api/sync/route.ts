@@ -37,20 +37,20 @@ export async function POST(req: NextRequest) {
       updated_at: new Date().toISOString(),
     };
     const { error } = await supabaseAdmin
-      .from("assets")
+      .from("brain_assets")
       .upsert(row, { onConflict: "type,name,owner" });
     if (error) { errors.push(`${a.type}/${a.name}: ${error.message}`); skipped++; }
     else upserted++;
   }
 
-  await supabaseAdmin.from("sync_log").insert({
+  await supabaseAdmin.from("brain_sync_log").insert({
     bot: body.bot, endpoint: "/api/sync",
     status: errors.length ? "partial" : "ok",
     detail: `upserted=${upserted} skipped=${skipped}${errors.length ? " errors=" + errors.join(";") : ""}`,
   });
 
   // bump bot last_seen
-  await supabaseAdmin.from("bots").upsert({
+  await supabaseAdmin.from("brain_bots").upsert({
     name: body.bot, kind: body.bot, last_seen: new Date().toISOString(),
   }, { onConflict: "name" });
 

@@ -1,6 +1,6 @@
 import { supabase } from "../../../lib/supabase";
 export async function GET() {
-  const { data, error } = await supabase.from("dashboards").select("*").order("name");
+  const { data, error } = await supabase.from("brain_dashboards").select("*").order("name");
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json({ dashboards: data });
 }

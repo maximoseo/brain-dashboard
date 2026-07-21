@@ -23,3 +23,6 @@ dist/
 next-env.d.ts
 .vercel
 .env*
+
+# Supabase local metadata
+supabase/.temp/

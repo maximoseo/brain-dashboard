@@ -1,14 +1,16 @@
 import { NextRequest } from "next/server";
-import { supabase } from "../../../lib/supabase";
-import { checkApiKey, unauthorized } from "../../../lib/api-auth";
+import { authorizeRead } from "@/lib/api-auth";
+import { jsonPrivate, serverError } from "@/lib/http";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
-  if (!checkApiKey(req)) return unauthorized();
-
-  const { data, error } = await supabase.from("brain_bots").select("*").order("name");
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json(
-    { bots: data },
-    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
-  );
+  try {
+    const auth = await authorizeRead(req);
+    if (!auth.ok) return auth.response;
+    const { data, error } = await getSupabaseAdmin().from("brain_bots").select("*").order("name").limit(500);
+    if (error) throw new Error(`Agent query failed: ${error.message}`);
+    return jsonPrivate({ bots: data ?? [] });
+  } catch (error) {
+    return serverError(req, "/api/bots", error);
+  }
 }

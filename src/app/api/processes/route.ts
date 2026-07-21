@@ -1,11 +1,20 @@
 import { NextRequest } from "next/server";
-import { supabase } from "../../../lib/supabase";
-import { checkApiKey, unauthorized } from "../../../lib/api-auth";
+import { authorizeRead } from "@/lib/api-auth";
+import { jsonPrivate, serverError } from "@/lib/http";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
-  if (!checkApiKey(req)) return unauthorized();
-
-  const { data, error } = await supabase.from("brain_processes").select("*").order("updated_at", { ascending: false });
-  if (error) return Response.json({ error: error.message }, { status: 500 });
-  return Response.json({ processes: data });
+  try {
+    const auth = await authorizeRead(req);
+    if (!auth.ok) return auth.response;
+    const { data, error } = await getSupabaseAdmin()
+      .from("brain_processes")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .limit(500);
+    if (error) throw new Error(`Process query failed: ${error.message}`);
+    return jsonPrivate({ processes: data ?? [] });
+  } catch (error) {
+    return serverError(req, "/api/processes", error);
+  }
 }

@@ -18,16 +18,29 @@ function LoginForm() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setLoading(true); setError("");
+    setLoading(true);
+    setError("");
     try {
-      const response = await fetch("/api/auth/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-      const body = await response.json().catch(() => ({})) as { error?: string };
-      if (!response.ok) throw new Error(body.error || "Unable to sign in. Check your credentials and try again.");
-      router.replace(safeNext(searchParams.get("next")));
+      const next = safeNext(searchParams.get("next"));
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password, next }),
+      });
+      const body = await response.json().catch(() => ({})) as { error?: string; redirect?: string };
+      if (!response.ok) {
+        const message = body.error === "too_many_attempts"
+          ? "Too many attempts. Please try again later."
+          : "Unable to sign in. Check your credentials and try again.";
+        throw new Error(message);
+      }
+      router.replace(body.redirect || next);
       router.refresh();
-    } catch {
-      setError("Unable to sign in. Check your credentials and try again.");
-    } finally { setLoading(false); }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to sign in. Check your credentials and try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

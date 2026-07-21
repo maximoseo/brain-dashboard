@@ -1,21 +1,62 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { getServerEnv } from "./env";
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-const service = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+let adminClient: SupabaseClient | undefined;
 
-if (!url || !anon) {
-  console.error("FATAL: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set");
+/** Server-only database client. The service role key must never be imported by client components. */
+export function getSupabaseAdmin(): SupabaseClient {
+  if (!adminClient) {
+    const env = getServerEnv();
+    adminClient = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+      global: { headers: { "X-Client-Info": "brain-dashboard-server" } },
+    });
+  }
+  return adminClient;
 }
-if (!service && typeof window === "undefined") {
-  console.error("WARN: SUPABASE_SERVICE_KEY unset — write routes (sync, memory) will fail under RLS");
+
+export const ASSET_TYPES = ["skill", "plugin", "cli", "mcp", "design"] as const;
+export type AssetType = (typeof ASSET_TYPES)[number];
+
+export interface Asset {
+  id?: string;
+  type: AssetType;
+  name: string;
+  owner: string;
+  description?: string | null;
+  source?: string | null;
+  version?: string | null;
+  enabled?: boolean;
+  status?: "active" | "stale" | "disabled";
+  meta?: Record<string, unknown>;
+  created_at?: string;
+  updated_at?: string;
 }
 
-export const supabase = createClient(url || "https://placeholder.supabase.co", anon || "placeholder", { auth: { persistSession: false } });
-export const supabaseAdmin = service ? createClient(url!, service, { auth: { persistSession: false } }) : supabase;
+export interface Bot {
+  id?: string;
+  name: string;
+  kind: string;
+  status?: "online" | "degraded" | "offline";
+  model?: string | null;
+  base_url?: string | null;
+  last_seen?: string | null;
+  meta?: Record<string, unknown>;
+}
 
-export type AssetType = "skill" | "plugin" | "cli" | "mcp" | "design";
-export interface Asset { id?: string; type: AssetType; name: string; owner: string; description?: string; source?: string; version?: string; enabled?: boolean; meta?: Record<string, unknown>; created_at?: string; updated_at?: string; }
-export interface Bot { id?: string; name: string; kind: string; status?: string; model?: string; base_url?: string; last_seen?: string; meta?: Record<string, unknown>; }
-export interface Dashboard { id?: string; name: string; url: string; category?: string; status?: string; icon?: string; }
-export interface MemoryFact { id?: string; key: string; value: string; scope?: string; source?: string; }
+export interface Dashboard {
+  id?: string;
+  name: string;
+  url: string;
+  category?: string | null;
+  status?: "live" | "degraded" | "offline";
+  icon?: string | null;
+}
+
+export interface MemoryFact {
+  id?: string;
+  key: string;
+  value: string;
+  scope?: string;
+  source?: string | null;
+}

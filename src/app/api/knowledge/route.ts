@@ -1,82 +1,145 @@
 import { NextRequest } from "next/server";
-import { supabaseAdmin } from "../../../lib/supabase";
-import { checkApiKey, unauthorized } from "../../../lib/api-auth";
+import { z } from "zod";
+import { authorizeRead } from "@/lib/api-auth";
+import { getServerEnv } from "@/lib/env";
+import { jsonPrivate, requestId, serverError, validationError } from "@/lib/http";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
-interface Result { source: string; title: string; snippet: string; url?: string; score?: number; }
+const SOURCE_NAMES = ["memory", "assets", "processes", "supermemory", "mem0", "obsidian"] as const;
+type SourceName = (typeof SOURCE_NAMES)[number];
+interface Result { source: string; title: string; snippet: string; url?: string; score?: number }
+interface SourceOutcome { source: SourceName; status: "ok" | "unconfigured" | "failed"; count: number; latencyMs: number; error?: string }
 
-function sanitizeQ(q: string): string {
-  return q.replace(/[,.()\\]/g, " ").replace(/[%_]/g, " ").trim().slice(0, 100);
+const querySchema = z.object({
+  q: z.string().trim().min(1).max(100),
+  sources: z.string().optional().transform((value, ctx): SourceName[] | undefined => {
+    if (!value) return undefined;
+    const sources = value.split(",");
+    const invalid = sources.filter((source) => !(SOURCE_NAMES as readonly string[]).includes(source));
+    if (invalid.length) {
+      ctx.addIssue({ code: "custom", message: `Unknown sources: ${invalid.join(", ")}` });
+      return z.NEVER;
+    }
+    return [...new Set(sources)] as SourceName[];
+  }),
+});
+
+const genericResultSchema = z.object({
+  title: z.string().optional(),
+  content: z.string().optional(),
+  url: z.string().optional(),
+  score: z.number().optional(),
+  id: z.string().optional(),
+  memory: z.string().optional(),
+  filename: z.string().optional(),
+  excerpt: z.string().optional(),
+  snippet: z.string().optional(),
+  file: z.object({ path: z.string().optional() }).optional(),
+}).passthrough();
+
+function sanitizeQuery(q: string): string {
+  return q.replace(/[,.()\\%_]/g, " ").replace(/\s+/g, " ").trim();
 }
 
-async function searchSupabaseMemory(q: string): Promise<Result[]> {
-  const { data } = await supabaseAdmin.from("brain_memory_facts").select("*").ilike("value", `%${q}%`).limit(10);
-  return (data || []).map((f: any) => ({ source: "memory", title: f.key, snippet: (f.value || "").slice(0, 200), score: 0.9 }));
+function safeUrl(value?: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function fetchJson(url: string, init?: RequestInit, timeoutMs = 3_000): Promise<unknown> {
+  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs), cache: "no-store" });
+  if (!response.ok) throw new Error(`upstream_http_${response.status}`);
+  return response.json() as Promise<unknown>;
+}
+
+function resultArray(input: unknown): z.infer<typeof genericResultSchema>[] {
+  const container = z.object({ results: z.array(genericResultSchema).optional() }).passthrough().safeParse(input);
+  if (container.success && container.data.results) return container.data.results;
+  const direct = z.array(genericResultSchema).safeParse(input);
+  return direct.success ? direct.data : [];
+}
+
+async function searchMemory(q: string): Promise<Result[]> {
+  const { data, error } = await getSupabaseAdmin().from("brain_memory_facts").select("key,value").ilike("value", `%${q}%`).limit(10);
+  if (error) throw new Error("memory_query_failed");
+  return (data ?? []).map((fact) => ({ source: "memory", title: String(fact.key), snippet: String(fact.value ?? "").slice(0, 200), score: 0.9 }));
 }
 
 async function searchAssets(q: string): Promise<Result[]> {
-  const { data } = await supabaseAdmin.from("brain_assets").select("name,description,source,type").ilike("name", `%${q}%`).limit(15);
-  const { data: d2 } = await supabaseAdmin.from("brain_assets").select("name,description,source,type").ilike("description", `%${q}%`).limit(15);
-  return [...(data||[]), ...(d2||[])].map((a: any) => ({ source: a.type, title: a.name, snippet: (a.description||"").slice(0,200), url: a.source, score: 0.8 }));
+  const { data, error } = await getSupabaseAdmin()
+    .from("brain_assets")
+    .select("name,description,source,type")
+    .or(`name.ilike.%${q}%,description.ilike.%${q}%`)
+    .limit(20);
+  if (error) throw new Error("asset_query_failed");
+  return (data ?? []).map((asset) => ({
+    source: String(asset.type), title: String(asset.name), snippet: String(asset.description ?? "").slice(0, 200),
+    url: safeUrl(typeof asset.source === "string" ? asset.source : undefined), score: 0.8,
+  }));
 }
 
 async function searchProcesses(q: string): Promise<Result[]> {
-  const { data } = await supabaseAdmin.from("brain_processes").select("*").ilike("title", `%${q}%`).limit(10);
-  return (data || []).map((p: any) => ({ source: "process", title: p.title, snippet: (p.body||"").slice(0,200), score: 0.85 }));
+  const { data, error } = await getSupabaseAdmin().from("brain_processes").select("title,body").or(`title.ilike.%${q}%,body.ilike.%${q}%`).limit(10);
+  if (error) throw new Error("process_query_failed");
+  return (data ?? []).map((process) => ({ source: "process", title: String(process.title), snippet: String(process.body ?? "").slice(0, 200), score: 0.85 }));
 }
 
-function safeUrl(u?: string): string | undefined {
-  return u && /^https?:\/\//.test(u) ? u : undefined;
+async function searchSupermemory(q: string): Promise<Result[] | null> {
+  const key = getServerEnv().SUPERMEMORY_API_KEY;
+  if (!key) return null;
+  const data = await fetchJson("https://api.supermemory.ai/v3/search", {
+    method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ q, limit: 10 }),
+  });
+  return resultArray(data).map((item) => ({ source: "supermemory", title: item.title ?? (item.content ?? "").slice(0, 80), snippet: (item.content ?? "").slice(0, 200), url: safeUrl(item.url), score: item.score ?? 0.7 }));
 }
 
-async function withTimeout<T>(p: Promise<T>, ms = 3000): Promise<T> {
-  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))]).catch(() => [] as unknown as T);
+async function searchMem0(q: string): Promise<Result[] | null> {
+  const url = getServerEnv().MEM0_API_URL;
+  if (!url) return null;
+  const data = await fetchJson(`${url}/search?q=${encodeURIComponent(q)}&limit=10`);
+  return resultArray(data).map((item) => ({ source: "mem0", title: item.id ?? (item.memory ?? "").slice(0, 80), snippet: (item.memory ?? "").slice(0, 200), score: item.score ?? 0.6 }));
 }
 
-async function searchSupermemory(q: string): Promise<Result[]> {
-  const key = process.env.SUPERMEMORY_API_KEY; if (!key) return [];
-  return withTimeout(fetch("https://api.supermemory.ai/v3/search", {
-    method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ q, limit: 10 }),
-  }).then(r => r.json()).then((d: any) => (d.results||d||[]).map((x: any) => ({
-    source: "supermemory", title: x.title || (x.content||"").slice(0,80), snippet: (x.content||"").slice(0,200), url: safeUrl(x.url), score: x.score||0.7,
-  }))));
-}
-
-async function searchMem0(q: string): Promise<Result[]> {
-  const url = process.env.MEM0_API_URL; if (!url) return [];
-  return withTimeout(fetch(`${url}/search?q=${encodeURIComponent(q)}&limit=10`).then(r => r.json()).then((d: any) => (d.results||d||[]).map((x: any) => ({
-    source: "mem0", title: x.id || (x.memory||"").slice(0,80), snippet: (x.memory||"").slice(0,200), score: x.score||0.6,
-  }))));
-}
-
-async function searchObsidian(q: string): Promise<Result[]> {
-  const url = process.env.OBSIDIAN_API_URL; const key = process.env.OBSIDIAN_API_KEY; if (!url || !key) return [];
-  return withTimeout(fetch(`${url}/search/simple/?query=${encodeURIComponent(q)}&contextLength=50`, { headers: { Authorization: `Bearer ${key}` } })
-    .then(r => r.json()).then((d: any) => (Array.isArray(d)?d:[]).slice(0,10).map((x: any) => ({
-      source: "obsidian", title: x.filename || x.file?.path, snippet: (x.excerpt||x.snippet||"").slice(0,200), url: safeUrl(x.file?.path), score: 0.75,
-    }))));
+async function searchObsidian(q: string): Promise<Result[] | null> {
+  const { OBSIDIAN_API_URL: url, OBSIDIAN_API_KEY: key } = getServerEnv();
+  if (!url || !key) return null;
+  const data = await fetchJson(`${url}/search/simple/?query=${encodeURIComponent(q)}&contextLength=50`, { headers: { Authorization: `Bearer ${key}` } });
+  return resultArray(data).slice(0, 10).map((item) => ({ source: "obsidian", title: item.filename ?? item.file?.path ?? "Untitled", snippet: (item.excerpt ?? item.snippet ?? "").slice(0, 200), score: 0.75 }));
 }
 
 export async function GET(req: NextRequest) {
-  if (!checkApiKey(req)) return unauthorized();
+  try {
+    const auth = await authorizeRead(req);
+    if (!auth.ok) return auth.response;
+    const parsed = querySchema.safeParse(Object.fromEntries(req.nextUrl.searchParams.entries()));
+    if (!parsed.success) return validationError(parsed.error, requestId(req));
+    const q = sanitizeQuery(parsed.data.q);
+    if (!q) return jsonPrivate({ query: parsed.data.q, count: 0, results: [], sources: [] });
 
-  const rawQ = req.nextUrl.searchParams.get("q");
-  if (!rawQ) return Response.json({ error: "q required" }, { status: 400 });
-  const q = sanitizeQ(rawQ);
-  if (!q) return Response.json({ query: rawQ, count: 0, results: [] });
-  const sourcesParam = req.nextUrl.searchParams.get("sources");
-  const sources = sourcesParam ? sourcesParam.split(",") : null;
-
-  const fanout: Record<string, () => Promise<Result[]>> = {
-    memory: () => searchSupabaseMemory(q),
-    assets: () => searchAssets(q),
-    processes: () => searchProcesses(q),
-    supermemory: () => searchSupermemory(q),
-    mem0: () => searchMem0(q),
-    obsidian: () => searchObsidian(q),
-  };
-  const fns = Object.entries(fanout).filter(([n]) => !sources || sources.includes(n)).map(([, fn]) => fn().catch(() => []));
-  const settled = await Promise.all(fns);
-  const results = settled.flat().sort((a, b) => (b.score || 0) - (a.score || 0));
-  return Response.json({ query: rawQ, count: results.length, results });
+    const searches: Record<SourceName, () => Promise<Result[] | null>> = {
+      memory: () => searchMemory(q), assets: () => searchAssets(q), processes: () => searchProcesses(q),
+      supermemory: () => searchSupermemory(q), mem0: () => searchMem0(q), obsidian: () => searchObsidian(q),
+    };
+    const selected = parsed.data.sources ?? SOURCE_NAMES;
+    const settled = await Promise.all(selected.map(async (source) => {
+      const started = Date.now();
+      try {
+        const results = await searches[source]();
+        const outcome: SourceOutcome = { source, status: results === null ? "unconfigured" : "ok", count: results?.length ?? 0, latencyMs: Date.now() - started };
+        return { results: results ?? [], outcome };
+      } catch (error) {
+        const outcome: SourceOutcome = { source, status: "failed", count: 0, latencyMs: Date.now() - started, error: error instanceof Error ? error.message : "unknown_error" };
+        return { results: [], outcome };
+      }
+    }));
+    const results = settled.flatMap((item) => item.results).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    return jsonPrivate({ query: parsed.data.q, count: results.length, results, sources: settled.map((item) => item.outcome) });
+  } catch (error) {
+    return serverError(req, "/api/knowledge", error);
+  }
 }

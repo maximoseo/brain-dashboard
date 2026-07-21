@@ -22,17 +22,21 @@ jobs:
       - run: npm ci
 
       - name: Lint
-        run: npx eslint src/ --ext .ts,.tsx
+        run: npm run lint
 
       - name: TypeCheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
 
       - name: Build
         run: npm run build
         env:
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          BRAIN_SYNC_SECRET: ${{ secrets.BRAIN_SYNC_SECRET }}
           BRAIN_ACCESS_PASSWORD: ${{ secrets.BRAIN_ACCESS_PASSWORD }}
           BRAIN_SESSION_SECRET: ${{ secrets.BRAIN_SESSION_SECRET }}
+          BRAIN_API_READ_KEY: ${{ secrets.BRAIN_API_READ_KEY }}
+          BRAIN_SYNC_WRITE_KEY: ${{ secrets.BRAIN_SYNC_WRITE_KEY }}
+          BRAIN_MEMORY_WRITE_KEY: ${{ secrets.BRAIN_MEMORY_WRITE_KEY }}

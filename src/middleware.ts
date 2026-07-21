@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 const SESSION_SECRET = process.env.BRAIN_SESSION_SECRET || "";
 
 // Routes that require auth (UI pages)
-const PROTECTED_PAGES = ["/", "/overview", "/inventory", "/bots", "/dashboards", "/knowledge", "/memory"];
+const PROTECTED_PAGES = ["/", "/overview", "/inventory", "/agents", "/dashboards", "/knowledge", "/memory", "/processes", "/activity"];
 
 // Routes that are public (login page, static assets)
 const PUBLIC_PATHS = ["/login", "/_next", "/favicon.ico"];

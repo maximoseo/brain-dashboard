@@ -1,8 +1,7 @@
-import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default [
-  js.configs.recommended,
+  { ignores: [".next/**", "node_modules/**"] },
   ...tseslint.configs.recommended,
   {
     rules: {

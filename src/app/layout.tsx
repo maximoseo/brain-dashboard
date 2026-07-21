@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Brain — Agent Ecosystem Registry",
-  description: "Central registry for skills, plugins, CLI tools, MCP servers, bots, dashboards, processes, and memory facts.",
+  title: "Brain Dashboard — Agent Operations Hub",
+  description: "Operational visibility for agents, skills, plugins, CLI tools, MCP servers, dashboards, processes, and durable memory.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

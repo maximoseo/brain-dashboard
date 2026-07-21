@@ -69,6 +69,9 @@ button { color: inherit; }
 .nav-link:hover { background: var(--surface-2); color: var(--text); }
 .nav-link.active { background: var(--primary-soft); color: #b7afff; }
 .sidebar-footer { padding-top: 16px; display: flex; align-items: center; gap: 9px; border-top: 1px solid var(--border); color: var(--muted); font-size: 11px; }
+.sign-out-link { width: 100%; margin-top: 6px; color: var(--muted); }
+.sign-out-link:hover { background: var(--danger-soft); color: var(--danger); }
+.sign-out-link:disabled { opacity: .65; cursor: wait; }
 .mobile-bottom-nav, .mobile-menu-layer { display: none; }
 
 .page-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 28px; margin-bottom: 32px; }

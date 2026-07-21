@@ -8,5 +8,6 @@ export default defineConfig({
   test: {
     environment: "node",
     clearMocks: true,
+    include: ["tests/**/*.test.ts"],
   },
 });

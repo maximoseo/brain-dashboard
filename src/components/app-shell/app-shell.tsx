@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/icon";
 
@@ -49,7 +49,9 @@ function NavigationLink({ item, pathname, compact = false, onNavigate }: { item:
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const current = navigation.find((item) => isCurrent(pathname, item.href));
 
   useEffect(() => setMoreOpen(false), [pathname]);
@@ -59,6 +61,16 @@ export function AppShell({ children }: { children: ReactNode }) {
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
   }, [moreOpen]);
+
+  async function signOut() {
+    setSigningOut(true);
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      router.replace("/login");
+      router.refresh();
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -75,6 +87,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </nav>
         <div className="sidebar-footer"><span className="live-dot" />Connected workspace</div>
+        <button className="nav-link sign-out-link" type="button" onClick={signOut} disabled={signingOut}>
+          <Icon name="logout" size={20} /><span>{signingOut ? "Signing out…" : "Sign out"}</span>
+        </button>
       </aside>
 
       <div className="app-column">
@@ -100,6 +115,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="mobile-menu-header"><div><p className="eyebrow">Navigate</p><h2>More</h2></div><button className="icon-button" type="button" aria-label="Close menu" onClick={() => setMoreOpen(false)}><Icon name="x" /></button></div>
             <nav>
               {navigation.slice(4).map((item) => <NavigationLink item={item} pathname={pathname} onNavigate={() => setMoreOpen(false)} key={item.href} />)}
+              <button className="nav-link sign-out-link" type="button" onClick={signOut} disabled={signingOut}>
+                <Icon name="logout" size={20} /><span>{signingOut ? "Signing out…" : "Sign out"}</span>
+              </button>
             </nav>
           </section>
         </div>

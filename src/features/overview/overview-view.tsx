@@ -13,7 +13,7 @@ interface DashboardsResponse { dashboards?: Dashboard[] }
 interface ProcessesResponse { processes?: ProcessRecord[] }
 
 export function OverviewView() {
-  const inventory = useApi<InventoryResponse>("/api/inventory");
+  const inventory = useApi<InventoryResponse>("/api/inventory?summary=true&pageSize=24");
   const agentsResponse = useApi<AgentsResponse>("/api/bots");
   const dashboardsResponse = useApi<DashboardsResponse>("/api/dashboards");
   const processesResponse = useApi<ProcessesResponse>("/api/processes");
@@ -29,9 +29,9 @@ export function OverviewView() {
   if (errors.length === 4) return <ErrorState message={errors[0]} onRetry={() => { inventory.reload(); agentsResponse.reload(); dashboardsResponse.reload(); processesResponse.reload(); }} />;
 
   const healthyAgents = agents.filter((agent) => ["online", "healthy", "active"].includes(normalizeStatus(agent.status))).length;
-  const staleAssets = assets.filter((asset) => isStale(asset.updated_at ?? asset.created_at)).length;
+  const staleAssets = inventory.data?.summary?.stale ?? assets.filter((asset) => isStale(asset.updated_at ?? asset.created_at)).length;
   const onlineDashboards = dashboards.filter((dashboard) => ["online", "healthy", "active", "ok"].includes(normalizeStatus(dashboard.status))).length;
-  const activeMcp = assets.filter((asset) => asset.type === "mcp" && asset.enabled !== false).length;
+  const activeMcp = inventory.data?.summary?.activeMcp ?? assets.filter((asset) => asset.type === "mcp" && asset.enabled !== false).length;
   const publishedProcesses = processes.filter((process) => normalizeStatus(process.status, "published") === "published").length;
 
   const cards: Array<{ label: string; value: number; note: string; href: string; icon: IconName; tone: string }> = [
@@ -82,7 +82,7 @@ export function OverviewView() {
           <div className="panel-header"><div><p className="eyebrow">Coverage</p><h2 id="coverage-title">Capabilities by type</h2></div><Link href="/inventory">Full catalog</Link></div>
           <div className="coverage-list">
             {["skill", "plugin", "cli", "mcp", "design"].map((type) => {
-              const count = assets.filter((asset) => asset.type === type).length;
+              const count = inventory.data?.summary?.byType[type] ?? assets.filter((asset) => asset.type === type).length;
               const percentage = assets.length ? Math.round(count / assets.length * 100) : 0;
               return <div className="coverage-row" key={type}><div><strong>{type === "cli" ? "CLI tools" : type === "mcp" ? "MCP servers" : `${type[0].toUpperCase()}${type.slice(1)}s`}</strong><span>{count}</span></div><div className="progress" aria-label={`${percentage}% of capabilities`}><span style={{ width: `${percentage}%` }} /></div></div>;
             })}

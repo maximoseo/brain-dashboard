@@ -3,7 +3,7 @@ import type { ReactNode, SVGProps } from "react";
 export type IconName =
   | "activity" | "agent" | "alert" | "arrow" | "box" | "brain" | "check"
   | "chevron" | "dashboard" | "database" | "external" | "filter" | "grid"
-  | "menu" | "memory" | "process" | "refresh" | "search" | "server" | "x";
+  | "logout" | "menu" | "memory" | "process" | "refresh" | "search" | "server" | "x";
 
 const paths: Record<IconName, ReactNode> = {
   activity: <><path d="M3 12h4l2.5-7 5 14 2.5-7h4" /></>,
@@ -19,6 +19,7 @@ const paths: Record<IconName, ReactNode> = {
   external: <><path d="M14 4h6v6M20 4l-9 9" /><path d="M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6" /></>,
   filter: <><path d="M4 5h16M7 12h10M10 19h4" /></>,
   grid: <><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></>,
+  logout: <><path d="M10 5H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h5M14 8l4 4-4 4M18 12H8" /></>,
   menu: <><path d="M4 6h16M4 12h16M4 18h16" /></>,
   memory: <><path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" /><path d="M9 4v4M15 4v4M8 13h8M8 17h5" /></>,
   process: <><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M8 6h5a5 5 0 0 1 5 5v5M16 18h-5a5 5 0 0 1-5-5V8" /></>,

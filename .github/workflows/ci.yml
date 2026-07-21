@@ -27,16 +27,22 @@ jobs:
       - name: TypeCheck
         run: npm run typecheck
 
-      - name: Unit tests
+      - name: Unit and contract tests
         run: npm test
+
+      - name: English-only UI check
+        run: npm run check:english
+
+      - name: Dependency audit
+        run: npm audit --audit-level=moderate
 
       - name: Build
         run: npm run build
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          BRAIN_ACCESS_PASSWORD: ${{ secrets.BRAIN_ACCESS_PASSWORD }}
-          BRAIN_SESSION_SECRET: ${{ secrets.BRAIN_SESSION_SECRET }}
-          BRAIN_API_READ_KEY: ${{ secrets.BRAIN_API_READ_KEY }}
-          BRAIN_SYNC_WRITE_KEY: ${{ secrets.BRAIN_SYNC_WRITE_KEY }}
-          BRAIN_MEMORY_WRITE_KEY: ${{ secrets.BRAIN_MEMORY_WRITE_KEY }}
+          SUPABASE_URL: https://example.supabase.co
+          SUPABASE_SERVICE_KEY: ci-placeholder-service-role-key
+          BRAIN_ACCESS_PASSWORD: ci-placeholder-access-password
+          BRAIN_SESSION_SECRET: ci-placeholder-session-secret-at-least-32-characters
+          BRAIN_API_READ_KEY: ci-placeholder-read-key-at-least-32-characters
+          BRAIN_SYNC_WRITE_KEY: ci-placeholder-sync-key-at-least-32-characters
+          BRAIN_MEMORY_WRITE_KEY: ci-placeholder-memory-key-at-least-32-characters

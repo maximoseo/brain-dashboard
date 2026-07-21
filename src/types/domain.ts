@@ -73,4 +73,9 @@ export interface InventoryResponse {
   page?: number;
   pageSize?: number;
   totalPages?: number;
+  summary?: {
+    stale: number;
+    activeMcp: number;
+    byType: Record<string, number>;
+  };
 }

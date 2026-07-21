@@ -30,7 +30,7 @@ export function OverviewView() {
 
   const healthyAgents = agents.filter((agent) => ["online", "healthy", "active"].includes(normalizeStatus(agent.status))).length;
   const staleAssets = inventory.data?.summary?.stale ?? assets.filter((asset) => isStale(asset.updated_at ?? asset.created_at)).length;
-  const onlineDashboards = dashboards.filter((dashboard) => ["online", "healthy", "active", "ok"].includes(normalizeStatus(dashboard.status))).length;
+  const onlineDashboards = dashboards.filter((dashboard) => ["online", "healthy", "active", "ok", "live"].includes(normalizeStatus(dashboard.status))).length;
   const activeMcp = inventory.data?.summary?.activeMcp ?? assets.filter((asset) => asset.type === "mcp" && asset.enabled !== false).length;
   const publishedProcesses = processes.filter((process) => normalizeStatus(process.status, "published") === "published").length;
 

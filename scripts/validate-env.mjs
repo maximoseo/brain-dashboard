@@ -1,4 +1,6 @@
 /* global process, console */
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import { z } from "zod";
 
 const schema = z.object({

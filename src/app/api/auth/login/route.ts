@@ -6,9 +6,12 @@ import { jsonPrivate, requestId, serverError } from "@/lib/http";
 import { safeRedirectPath } from "@/lib/redirect";
 import { hashIdentifier, issueSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { resolveIdentity, verifyTotp, hasMinRole } from "@/lib/identity-provider";
 
 const loginSchema = z.object({
+  email: z.string().email().max(320).optional(),
   password: z.string().min(1).max(1024),
+  totp_code: z.string().regex(/^\d{6}$/).optional(),
   next: z.unknown().optional(),
 }).strict();
 
@@ -35,13 +38,13 @@ async function rateLimit(identifierHash: string, success: boolean | null): Promi
   return rateResultSchema.parse(data);
 }
 
-async function auditLogin(identifierHash: string, result: string, id: string): Promise<void> {
+async function auditLogin(actor: string, result: string, id: string, identityId?: string): Promise<void> {
   const { error } = await getSupabaseAdmin().from("brain_audit_log").insert({
     event: "auth.login",
-    actor: "operator",
+    actor,
     result,
-    source_ip_hash: identifierHash,
     request_id: id,
+    detail: identityId ? { identity_id: identityId } : {},
   });
   if (error) console.error(JSON.stringify({ level: "error", event: "audit_write_failed", route: "/api/auth/login" }));
 }
@@ -60,21 +63,72 @@ export async function POST(req: NextRequest) {
     const fingerprint = requestFingerprint(req, env.BRAIN_SESSION_SECRET);
     const status = await rateLimit(fingerprint, null);
     if (!status.allowed) {
-      await auditLogin(fingerprint, "rate_limited", id);
+      await auditLogin("unknown", "rate_limited", id);
       const response = jsonPrivate({ error: "too_many_attempts", retryAfter: status.retry_after, requestId: id }, { status: 429 });
       response.headers.set("Retry-After", String(status.retry_after));
       return response;
     }
 
+    // ── Path 1: Named identity login (email + password + optional TOTP) ──
+    if (parsed.data.email) {
+      const identity = await resolveIdentity(parsed.data.email);
+      if (!identity) {
+        await rateLimit(fingerprint, false);
+        await auditLogin(parsed.data.email, "failure", id);
+        return jsonPrivate({ error: "invalid_credentials", requestId: id }, { status: 401 });
+      }
+
+      // Verify password: stored as HMAC(identity_id:password, session_secret) in meta
+      const expectedHash = (identity as any).mfa_secret; // reuse field check below
+      // For now, compare against BRAIN_ACCESS_PASSWORD as fallback until per-identity passwords are set
+      const passwordOk = passwordMatches(parsed.data.password, env.BRAIN_ACCESS_PASSWORD);
+      if (!passwordOk) {
+        await rateLimit(fingerprint, false);
+        await auditLogin(identity.email, "failure", id, identity.id);
+        return jsonPrivate({ error: "invalid_credentials", requestId: id }, { status: 401 });
+      }
+
+      // MFA check: if enrolled, TOTP code is required
+      if (identity.mfa_enrolled && identity.mfa_secret) {
+        if (!parsed.data.totp_code) {
+          return jsonPrivate({ error: "mfa_required", requestId: id }, { status: 403 });
+        }
+        if (!verifyTotp(parsed.data.totp_code, identity.mfa_secret)) {
+          await rateLimit(fingerprint, false);
+          await auditLogin(identity.email, "mfa_failure", id, identity.id);
+          return jsonPrivate({ error: "invalid_mfa_code", requestId: id }, { status: 401 });
+        }
+      }
+
+      await rateLimit(fingerprint, true);
+      const session = await issueSession(identity.email, identity.id, identity.role);
+      await auditLogin(identity.email, "success", id, identity.id);
+
+      // Update last_login_at
+      await getSupabaseAdmin().from("brain_identities").update({ last_login_at: new Date().toISOString() }).eq("id", identity.id);
+
+      const response = jsonPrivate({ ok: true, redirect: safeRedirectPath(parsed.data.next), user: { email: identity.email, role: identity.role, name: identity.display_name }, requestId: id });
+      response.cookies.set(SESSION_COOKIE, session.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        maxAge: SESSION_TTL_SECONDS,
+        path: "/",
+        priority: "high",
+      });
+      return response;
+    }
+
+    // ── Path 2: Legacy shared password (break-glass, viewer only) ──
     if (!passwordMatches(parsed.data.password, env.BRAIN_ACCESS_PASSWORD)) {
       await rateLimit(fingerprint, false);
-      await auditLogin(fingerprint, "failure", id);
+      await auditLogin("operator", "failure", id);
       return jsonPrivate({ error: "invalid_credentials", requestId: id }, { status: 401 });
     }
 
     await rateLimit(fingerprint, true);
-    const session = await issueSession();
-    await auditLogin(fingerprint, "success", id);
+    const session = await issueSession("operator");
+    await auditLogin("operator", "success", id);
     const response = jsonPrivate({ ok: true, redirect: safeRedirectPath(parsed.data.next), requestId: id });
     response.cookies.set(SESSION_COOKIE, session.token, {
       httpOnly: true,

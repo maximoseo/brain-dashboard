@@ -68,12 +68,18 @@ export function hashIdentifier(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-export async function issueSession(actor = "operator"): Promise<{ token: string; payload: SessionPayload }> {
+export async function issueSession(
+  actor = "operator",
+  identityId?: string,
+  role?: string,
+): Promise<{ token: string; payload: SessionPayload }> {
   const env = getServerEnv();
   const session = createSessionToken(env.BRAIN_SESSION_SECRET);
   const { error } = await getSupabaseAdmin().from("brain_sessions").insert({
     id: session.payload.sid,
     actor,
+    identity_id: identityId ?? null,
+    role: role ?? null,
     expires_at: new Date(session.payload.exp * 1000).toISOString(),
     last_seen_at: new Date().toISOString(),
   });

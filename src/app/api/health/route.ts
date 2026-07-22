@@ -24,13 +24,27 @@ export async function GET(req: NextRequest) {
     }
   })();
 
-  const status = database === "up" ? 200 : 503;
+  // Schema compatibility check
+  let schemaVersion = 0;
+  if (database === "up") {
+    try {
+      const { data } = await getSupabaseAdmin().rpc("brain_schema_version");
+      schemaVersion = typeof data === "number" ? data : 0;
+    } catch {
+      schemaVersion = 0;
+    }
+  }
+
+  const schemaCompatible = schemaVersion >= 3;
+  const status = database === "up" && schemaCompatible ? 200 : 503;
   const latencyMs = Date.now() - started;
-  logRequest({ event: "health_check", requestId: id, route: "/api/health", status, latencyMs, database });
+  logRequest({ event: "health_check", requestId: id, route: "/api/health", status, latencyMs, database, schemaVersion });
   return jsonPrivate({
     status: status === 200 ? "ok" : "degraded",
     check: "readiness",
-    dependencies: { database },
+    dependencies: { database, schema: schemaCompatible ? "compatible" : "incompatible" },
+    schemaVersion,
+    requiredSchemaVersion: 3,
     timestamp: new Date().toISOString(),
     version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) ?? "development",
     requestId: id,

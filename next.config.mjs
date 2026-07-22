@@ -2,6 +2,10 @@
 const nextConfig = {
   poweredByHeader: false,
   turbopack: { root: process.cwd() },
+  env: {
+    CRON_SECRET: process.env.CRON_SECRET,
+    DASHBOARD_PROBE_ALLOWED_HOSTS: process.env.DASHBOARD_PROBE_ALLOWED_HOSTS,
+  },
   async headers() {
     const contentSecurityPolicy = [
       "default-src 'self'",

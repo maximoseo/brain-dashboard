@@ -13,7 +13,9 @@ interface ProcessesResponse { processes?: ProcessRecord[] }
 interface ActivityEvent { id: string; title: string; description: string; time: string; href: string; icon: IconName; type: string }
 
 export function ActivityView() {
-  const inventory = useApi<InventoryResponse>("/api/inventory");
+  // Request a larger, time-sorted page so the activity timeline is not
+  // silently truncated by the inventory default (which sorts by name).
+  const inventory = useApi<InventoryResponse>("/api/inventory?pageSize=50&sort=updated_at&direction=desc");
   const agentsResponse = useApi<AgentsResponse>("/api/bots");
   const processesResponse = useApi<ProcessesResponse>("/api/processes");
   const loading = inventory.loading && agentsResponse.loading && processesResponse.loading;
@@ -26,9 +28,12 @@ export function ActivityView() {
   const processes = processesResponse.data?.processes ?? [];
   const events: ActivityEvent[] = [
     ...assets.filter((asset) => asset.updated_at ?? asset.created_at).map((asset) => ({ id: `asset-${asset.id}`, title: asset.name, description: `${asset.type.toUpperCase()} capability updated by ${asset.owner || "an unknown owner"}.`, time: (asset.updated_at ?? asset.created_at) as string, href: `/inventory?search=${encodeURIComponent(asset.name)}`, icon: "box" as IconName, type: "Inventory" })),
-    ...agents.filter((agent) => agent.last_seen ?? agent.updated_at).map((agent) => ({ id: `agent-${agent.id}`, title: `${agent.name} reported in`, description: `Agent status is ${agent.status || "unknown"}.`, time: (agent.last_seen ?? agent.updated_at) as string, href: "/agents", icon: "agent" as IconName, type: "Agent" })),
+    ...agents.filter((agent) => agent.last_seen).map((agent) => ({ id: `agent-${agent.id}`, title: `${agent.name} reported in`, description: `Agent status is ${agent.status || "unknown"}.`, time: agent.last_seen as string, href: "/agents", icon: "agent" as IconName, type: "Agent" })),
     ...processes.filter((process) => process.updated_at).map((process) => ({ id: `process-${process.id}`, title: process.title, description: "Process documentation was updated.", time: process.updated_at as string, href: "/processes", icon: "process" as IconName, type: "Process" })),
-  ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 50);
+  ]
+    .filter((event) => !Number.isNaN(new Date(event.time).getTime()))
+    .sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+    .slice(0, 50);
 
   return (
     <>

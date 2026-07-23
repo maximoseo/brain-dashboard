@@ -13,6 +13,13 @@ const schema = z.object({
   BRAIN_API_READ_KEY: z.string().min(32),
   BRAIN_SYNC_WRITE_KEY: z.string().min(32),
   BRAIN_MEMORY_WRITE_KEY: z.string().min(32),
+  BRAIN_ALERT_WRITE_KEY: z.string().min(32).optional(),
+  CRON_SECRET: z.string().min(32).optional(),
+  DASHBOARD_PROBE_ALLOWED_HOSTS: z.string().optional(),
+  TELEGRAM_ALERT_BOT_TOKEN: z.string().optional(),
+  TELEGRAM_ALERT_CHAT_ID: z.string().optional(),
+  NEXT_PUBLIC_DASHBOARD_NAME: z.string().optional(),
+  NEXT_PUBLIC_DASHBOARD_URL: z.string().url().optional(),
 }).superRefine((env, ctx) => {
   if (!env.SUPABASE_URL && !env.NEXT_PUBLIC_SUPABASE_URL) {
     ctx.addIssue({ code: "custom", path: ["SUPABASE_URL"], message: "required" });
@@ -20,9 +27,27 @@ const schema = z.object({
   if (!env.SUPABASE_SERVICE_KEY && !env.SUPABASE_SERVICE_ROLE_KEY) {
     ctx.addIssue({ code: "custom", path: ["SUPABASE_SERVICE_KEY"], message: "required" });
   }
-  const keys = [env.BRAIN_API_READ_KEY, env.BRAIN_SYNC_WRITE_KEY, env.BRAIN_MEMORY_WRITE_KEY];
+  const keys = [
+    env.BRAIN_API_READ_KEY,
+    env.BRAIN_SYNC_WRITE_KEY,
+    env.BRAIN_MEMORY_WRITE_KEY,
+  ];
   if (new Set(keys).size !== keys.length) {
     ctx.addIssue({ code: "custom", path: ["scoped API keys"], message: "must be distinct" });
+  }
+  if (env.BRAIN_ALERT_WRITE_KEY && keys.includes(env.BRAIN_ALERT_WRITE_KEY)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["BRAIN_ALERT_WRITE_KEY"],
+      message: "must be distinct from the other scoped API keys",
+    });
+  }
+  if (env.TELEGRAM_ALERT_BOT_TOKEN && !env.TELEGRAM_ALERT_CHAT_ID) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["TELEGRAM_ALERT_CHAT_ID"],
+      message: "required when TELEGRAM_ALERT_BOT_TOKEN is set",
+    });
   }
 });
 

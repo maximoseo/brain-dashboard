@@ -108,7 +108,21 @@ export function InventoryView() {
 
   return (
     <>
-      <PageHeader eyebrow="Capability catalog" title="Inventory" description="Search and review every skill, plugin, CLI tool, MCP server, and design capability in the workspace." actions={<div className="button-group"><button className="button secondary" type="button" onClick={() => exportData("csv")}><Icon name="database" size={17} />Export CSV</button><button className="button secondary" type="button" onClick={() => exportData("json")}>Export JSON</button></div>} />
+      <PageHeader
+        eyebrow="Capability catalog"
+        title="Inventory"
+        description="Search and review every skill, plugin, CLI tool, MCP server, and design capability in the workspace."
+        actions={
+          <div className="button-group" role="group" aria-label="Export current page">
+            <button className="button secondary" type="button" title={`Exports the ${pageSize} rows on this page only`} onClick={() => exportData("csv")}>
+              <Icon name="database" size={17} />Export page (CSV)
+            </button>
+            <button className="button secondary" type="button" title={`Exports the ${pageSize} rows on this page only`} onClick={() => exportData("json")}>
+              Export page (JSON)
+            </button>
+          </div>
+        }
+      />
 
       <section className="filter-panel" aria-labelledby="inventory-filters">
         <div className="filter-heading"><div><Icon name="filter" size={18} /><h2 id="inventory-filters">Filters</h2></div>{filtersActive && <button className="text-button" type="button" onClick={resetFilters}>Clear all</button>}</div>

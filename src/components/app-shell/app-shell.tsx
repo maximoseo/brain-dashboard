@@ -96,7 +96,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <div className="mobile-brand"><Brand /></div>
           <div className="topbar-context"><span className="topbar-label">Workspace</span><strong>{current?.label ?? "Brain Dashboard"}</strong></div>
-          <div className="freshness"><span className="live-dot" /><span>Live data</span></div>
+          <div className="freshness" aria-label="Connection status"><span className="live-dot" /><span>Connected workspace</span></div>
         </header>
         <main id="main-content" className="content" tabIndex={-1}>{children}</main>
       </div>

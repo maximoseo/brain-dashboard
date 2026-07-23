@@ -4,7 +4,7 @@ import { getServerEnv } from "./env";
 import { jsonPrivate } from "./http";
 import { verifyActiveSession } from "./session";
 
-export type AuthScope = "read" | "sync:write" | "memory:write";
+export type AuthScope = "read" | "sync:write" | "memory:write" | "alert:write";
 export interface AuthContext {
   actor: string;
   method: "session" | "bearer";
@@ -31,6 +31,7 @@ function scopeForToken(token: string): AuthScope | null {
   if (constantTimeEqual(token, env.BRAIN_API_READ_KEY)) return "read";
   if (constantTimeEqual(token, env.BRAIN_SYNC_WRITE_KEY)) return "sync:write";
   if (constantTimeEqual(token, env.BRAIN_MEMORY_WRITE_KEY)) return "memory:write";
+  if (env.BRAIN_ALERT_WRITE_KEY && constantTimeEqual(token, env.BRAIN_ALERT_WRITE_KEY)) return "alert:write";
   return null;
 }
 

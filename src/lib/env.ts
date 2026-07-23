@@ -13,11 +13,14 @@ const serverEnvSchema = z
     BRAIN_API_READ_KEY: z.string().min(32),
     BRAIN_SYNC_WRITE_KEY: z.string().min(32),
     BRAIN_MEMORY_WRITE_KEY: z.string().min(32),
+    BRAIN_ALERT_WRITE_KEY: z.string().min(32).optional(),
     SUPERMEMORY_API_KEY: z.string().optional(),
     MEM0_API_URL: optionalUrl,
     OBSIDIAN_API_URL: optionalUrl,
     OBSIDIAN_API_KEY: z.string().optional(),
     VERCEL_GIT_COMMIT_SHA: z.string().optional(),
+    CRON_SECRET: z.string().min(32).optional(),
+    DASHBOARD_PROBE_ALLOWED_HOSTS: z.string().optional(),
   })
   .superRefine((env, ctx) => {
     if (!env.SUPABASE_URL && !env.NEXT_PUBLIC_SUPABASE_URL) {

@@ -33,6 +33,13 @@ export interface Dashboard {
   icon?: string;
   owner?: string;
   updated_at?: string;
+  observed_at?: string | null;
+  status_reason?: string;
+  source_repository?: string;
+  deployment_platform?: string;
+  deployment_project?: string | null;
+  data_project?: string | null;
+  runbook_url?: string | null;
 }
 
 export interface MemoryFact {

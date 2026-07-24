@@ -95,3 +95,10 @@ test("external links include contextual names and new-tab announcements", async 
   assert.match(agents, /aria-hidden="true"/);
   assert.match(dashboards, /aria-hidden="true"/);
 });
+
+test("estate migration declares exactly the 16 audited dashboards and Railway mapping", async () => {
+  const sql = await text("supabase/migrations/20260722190000_dashboard_estate_registry.sql");
+  const slugs = [...sql.matchAll(/^\s*\('([a-z0-9-]+)',\s*'/gm)].map((match) => match[1]);
+  assert.equal(new Set(slugs).size, 16);
+  assert.match(sql, /'serp-rank-tracker'[\s\S]*'Railway'[\s\S]*'serp-rank-tracker-web-production'/);
+});

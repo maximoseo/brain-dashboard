@@ -65,7 +65,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   async function signOut() {
     setSigningOut(true);
     try {
-      await fetch("/api/auth/logout", { method: "POST" });
+      await fetch("/api/auth/session", { method: "DELETE" });
     } finally {
       router.replace("/login");
       router.refresh();

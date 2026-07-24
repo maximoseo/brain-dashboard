@@ -1,40 +1,49 @@
 "use client";
 
-import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Icon, type IconName } from "@/components/ui/icon";
-import { EmptyState, ErrorState, InlineNotice, LoadingState } from "@/components/feedback/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/feedback/states";
 import { useApi } from "@/lib/use-api";
-import { formatDate, formatRelative } from "@/lib/presentation";
-import type { Agent, Asset, InventoryResponse, ProcessRecord } from "@/types/domain";
+import { formatDate, formatRelative, titleCase } from "@/lib/presentation";
 
-interface AgentsResponse { bots?: Agent[]; agents?: Agent[] }
-interface ProcessesResponse { processes?: ProcessRecord[] }
-interface ActivityEvent { id: string; title: string; description: string; time: string; href: string; icon: IconName; type: string }
+interface ActivityEvent {
+  id: number;
+  event_type: string;
+  actor: string;
+  summary: string;
+  detail?: Record<string, unknown>;
+  created_at: string;
+}
+
+interface ActivityResponse { events?: ActivityEvent[]; nextCursor?: number | null }
+
+function iconForEvent(type: string): IconName {
+  const normalized = type.toLowerCase();
+  if (normalized.includes("agent") || normalized.includes("bot")) return "agent";
+  if (normalized.includes("process") || normalized.includes("workflow")) return "process";
+  if (normalized.includes("dashboard")) return "dashboard";
+  if (normalized.includes("memory") || normalized.includes("knowledge")) return "memory";
+  if (normalized.includes("sync") || normalized.includes("inventory")) return "box";
+  return "activity";
+}
+
+function eventDetail(detail?: Record<string, unknown>) {
+  if (!detail || Object.keys(detail).length === 0) return "No additional detail was recorded.";
+  const entries = Object.entries(detail).slice(0, 3).map(([key, value]) => `${titleCase(key)}: ${String(value).slice(0, 90)}`);
+  return entries.join(" · ");
+}
 
 export function ActivityView() {
-  const inventory = useApi<InventoryResponse>("/api/inventory");
-  const agentsResponse = useApi<AgentsResponse>("/api/bots");
-  const processesResponse = useApi<ProcessesResponse>("/api/processes");
-  const loading = inventory.loading && agentsResponse.loading && processesResponse.loading;
-  const errors = [inventory.error, agentsResponse.error, processesResponse.error].filter(Boolean) as string[];
-  if (loading) return <LoadingState label="Loading activity…" />;
-  if (errors.length === 3) return <ErrorState message={errors[0]} onRetry={() => { inventory.reload(); agentsResponse.reload(); processesResponse.reload(); }} />;
-
-  const assets: Asset[] = inventory.data?.items ?? inventory.data?.data ?? inventory.data?._all ?? [];
-  const agents = agentsResponse.data?.agents ?? agentsResponse.data?.bots ?? [];
-  const processes = processesResponse.data?.processes ?? [];
-  const events: ActivityEvent[] = [
-    ...assets.filter((asset) => asset.updated_at ?? asset.created_at).map((asset) => ({ id: `asset-${asset.id}`, title: asset.name, description: `${asset.type.toUpperCase()} capability updated by ${asset.owner || "an unknown owner"}.`, time: (asset.updated_at ?? asset.created_at) as string, href: `/inventory?search=${encodeURIComponent(asset.name)}`, icon: "box" as IconName, type: "Inventory" })),
-    ...agents.filter((agent) => agent.last_seen ?? agent.updated_at).map((agent) => ({ id: `agent-${agent.id}`, title: `${agent.name} reported in`, description: `Agent status is ${agent.status || "unknown"}.`, time: (agent.last_seen ?? agent.updated_at) as string, href: "/agents", icon: "agent" as IconName, type: "Agent" })),
-    ...processes.filter((process) => process.updated_at).map((process) => ({ id: `process-${process.id}`, title: process.title, description: "Process documentation was updated.", time: process.updated_at as string, href: "/processes", icon: "process" as IconName, type: "Process" })),
-  ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 50);
+  const response = useApi<ActivityResponse>("/api/activity");
+  if (response.loading) return <LoadingState label="Loading activity…" />;
+  if (response.error) return <ErrorState message={response.error} onRetry={response.reload} />;
+  const events = response.data?.events ?? [];
 
   return (
     <>
-      <PageHeader eyebrow="Operational timeline" title="Activity" description="Review recent capability updates, agent signals, and process changes across the workspace." actions={<button className="button secondary" type="button" onClick={() => { inventory.reload(); agentsResponse.reload(); processesResponse.reload(); }}><Icon name="refresh" size={17} />Refresh</button>} />
-      {errors.length > 0 && <InlineNotice>Activity is incomplete because one or more data sources could not be reached.</InlineNotice>}
-      {events.length === 0 ? <EmptyState icon="activity" title="No recent activity" description="Agent signals and registry updates will appear here when timestamped activity is available." /> : <ol className="activity-timeline">{events.map((event) => <li key={event.id}><span className="timeline-icon"><Icon name={event.icon} size={18} /></span><Link href={event.href}><div className="activity-header"><span className="type-badge">{event.type}</span><time dateTime={event.time} title={formatDate(event.time)}>{formatRelative(event.time)}</time></div><h2>{event.title}</h2><p>{event.description}</p></Link></li>)}</ol>}
+      <PageHeader eyebrow="Operational timeline" title="Activity" description="Review recorded workspace events from the activity ledger." actions={<button className="button secondary" type="button" onClick={response.reload}><Icon name="refresh" size={17} />Refresh</button>} />
+      <div className="results-announcement sr-only" role="status" aria-live="polite">{events.length} activity events loaded.</div>
+      {events.length === 0 ? <EmptyState icon="activity" title="No recent activity" description="Agent signals, sync operations, and registry changes will appear here when the activity ledger records events." /> : <ol className="activity-timeline">{events.map((event) => <li key={event.id}><span className="timeline-icon"><Icon name={iconForEvent(event.event_type)} size={18} /></span><article><div className="activity-header"><span className="type-badge">{titleCase(event.event_type)}</span><time dateTime={event.created_at} title={formatDate(event.created_at)}>{formatRelative(event.created_at)}</time></div><h2>{event.summary}</h2><p>{eventDetail(event.detail)}</p><small className="section-meta">Actor: {event.actor || "system"}</small></article></li>)}</ol>}
     </>
   );
 }

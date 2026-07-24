@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
     const response = jsonPrivate({ ok: true });
     response.cookies.set(SESSION_COOKIE, "", {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
       sameSite: "strict",
       expires: new Date(0),
       path: "/",

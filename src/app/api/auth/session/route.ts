@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { jsonPrivate, requestId, serverError } from "@/lib/http";
+import { isSameOriginRequest, jsonPrivate, requestId, serverError } from "@/lib/http";
 import { verifyActiveSession, revokeSession, SESSION_COOKIE } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
@@ -42,6 +42,10 @@ export async function GET(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const id = requestId(req);
+  if (!isSameOriginRequest(req)) {
+    return jsonPrivate({ error: "forbidden_origin", requestId: id }, { status: 403 });
+  }
+
   try {
     const token = req.cookies.get(SESSION_COOKIE)?.value;
     await revokeSession(token);

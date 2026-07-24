@@ -1,11 +1,9 @@
 import { NextRequest } from "next/server";
-import { z } from "zod";
 import { jsonPrivate, requestId, serverError } from "@/lib/http";
 import { getServerEnv } from "@/lib/env";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 const PROBE_TIMEOUT_MS = 10_000;
-const MAX_REDIRECTS = 3;
 
 // Only probe hosts explicitly allowlisted — prevents SSRF.
 function isAllowedHost(hostname: string): boolean {
@@ -102,7 +100,7 @@ export async function POST(req: NextRequest) {
   const id = requestId(req);
   try {
     // Auth: CRON_SECRET bearer
-    const env = getServerEnv();
+    getServerEnv();
     const cronSecret = process.env.CRON_SECRET ?? "";
     const bearer = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (!cronSecret || bearer !== cronSecret) {

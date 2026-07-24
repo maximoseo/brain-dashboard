@@ -154,6 +154,7 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .input-with-icon input { padding-left: 40px; }
 .data-table-wrap { max-width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 .data-table { width: 100%; min-width: 880px; border-collapse: collapse; background: var(--surface-1); }
+.data-table caption { padding: 12px 14px; color: var(--muted); background: var(--surface-2); font-size: 12px; text-align: left; }
 .data-table th { padding: 12px 14px; color: var(--muted); background: var(--surface-2); font-size: 10px; letter-spacing: .08em; text-align: left; text-transform: uppercase; }
 .data-table td { max-width: 280px; padding: 15px 14px; border-top: 1px solid var(--border); color: var(--text-soft); vertical-align: middle; }
 .data-table td:first-child { color: var(--text); }
@@ -204,6 +205,12 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .spinner.small { width: 17px; height: 17px; border-width: 2px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .knowledge-results { display: grid; gap: 10px; }
+.source-health { margin: 18px 0 20px; }
+.source-health-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 10px; }
+.source-health-card { min-width: 0; padding: 14px; display: grid; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1); }
+.source-health-card > div { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.source-health-card small, .source-health-card p { color: var(--muted); }
+.source-health-card p { margin: 0; font-size: 12px; }
 .knowledge-result { padding: 18px; border: 1px solid var(--border); border-left: 3px solid var(--primary); border-radius: var(--radius); background: var(--surface-1); }
 .knowledge-result-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .confidence { color: var(--muted); font-size: 10px; }

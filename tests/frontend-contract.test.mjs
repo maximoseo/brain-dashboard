@@ -34,9 +34,33 @@ test("responsive CSS separates sidebar and mobile navigation", async () => {
   assert.match(css, /prefers-reduced-motion/);
 });
 
-test("inventory requests paginated data and exposes filter controls", async () => {
+test("inventory requests paginated data and exposes accessible table/export controls", async () => {
   const inventory = await text("src/features/inventory/inventory-view.tsx");
   for (const field of ["pageSize", "search", "type", "owner", "status", "freshness", "source", "sort", "direction"]) assert.match(inventory, new RegExp(field));
   assert.match(inventory, /response\.data\?\.items/);
   assert.match(inventory, /aria-live="polite"/);
+  assert.match(inventory, /<caption>/);
+  assert.match(inventory, /aria-describedby="inventory-results-count"/);
+  assert.match(inventory, /Export filtered CSV/);
+});
+
+test("authenticated shell signs out through the idempotent session endpoint", async () => {
+  const shell = await text("src/components/app-shell/app-shell.tsx");
+  assert.match(shell, /fetch\("\/api\/auth\/session", \{ method: "DELETE" \}\)/);
+});
+
+test("activity is served by a dedicated API and not stitched together client-side", async () => {
+  const [route, activity] = await Promise.all([text("src/app/api/activity/route.ts"), text("src/features/activity/activity-view.tsx")]);
+  assert.match(route, /from\("brain_activity"\)/);
+  assert.match(route, /limit\(100\)/);
+  assert.match(activity, /useApi<ActivityResponse>\("\/api\/activity"\)/);
+  assert.doesNotMatch(activity, /useApi<InventoryResponse>/);
+});
+
+test("knowledge search exposes source health and announces results", async () => {
+  const knowledge = await text("src/features/knowledge/knowledge-view.tsx");
+  assert.match(knowledge, /Source health/);
+  assert.match(knowledge, /role="status"/);
+  assert.match(knowledge, /aria-live="polite"/);
+  assert.match(knowledge, /sources\?: SourceOutcome\[\]/);
 });

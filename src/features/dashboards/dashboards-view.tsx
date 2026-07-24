@@ -22,9 +22,15 @@ export function DashboardsView() {
         <div className="entity-grid">
           {dashboards.map((dashboard) => {
             const status = normalizeStatus(dashboard.status);
-            const healthy = ["online", "healthy", "active", "ok"].includes(status);
+            const healthy = ["online", "healthy", "active", "ok", "live"].includes(status);
             const safeUrl = isSafeExternalUrl(dashboard.url);
-            return <article className="entity-card dashboard-card" key={dashboard.id}><div className="entity-card-header"><span className="entity-icon"><Icon name="dashboard" size={22} /></span><span className={`status-badge ${healthy ? "success" : status === "offline" ? "danger" : "warning"}`}><span className="status-indicator" />{titleCase(status)}</span></div><div><p className="eyebrow">{dashboard.category || "Operations"}</p><h2>{dashboard.name}</h2><p className="entity-subtitle">Owned by {dashboard.owner || "Unassigned"}</p></div>{safeUrl ? <a className="button primary full-width" href={dashboard.url} target="_blank" rel="noopener noreferrer">Open dashboard <Icon name="external" size={16} /></a> : <span className="button disabled full-width" aria-disabled="true">URL unavailable</span>}</article>;
+            return (
+              <article className="entity-card dashboard-card" key={dashboard.id}>
+                <div className="entity-card-header"><span className="entity-icon"><Icon name="dashboard" size={22} /></span><span className={`status-badge ${healthy ? "success" : status === "offline" ? "danger" : "warning"}`}><span className="status-indicator" aria-hidden="true" />{titleCase(status)}</span></div>
+                <div><p className="eyebrow">{dashboard.category || "Operations"}</p><h2>{dashboard.name}</h2><p className="entity-subtitle">Owned by {dashboard.owner || "Unassigned"}</p></div>
+                {safeUrl ? <a className="button primary full-width" href={dashboard.url} target="_blank" rel="noopener noreferrer" aria-label={`Open dashboard ${dashboard.name} in a new tab`}>Open dashboard <span className="sr-only">in a new tab</span> <Icon name="external" size={16} /></a> : <span className="button disabled full-width" aria-disabled="true">URL unavailable</span>}
+              </article>
+            );
           })}
         </div>
       )}

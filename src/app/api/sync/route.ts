@@ -28,6 +28,11 @@ const assetSchema = z.object({
 
 export const syncBodySchema = z.object({
   bot: z.string().trim().min(1).max(100).regex(/^[a-zA-Z0-9_.:-]+$/),
+  credential_hash: z.string().trim().regex(/^[a-fA-F0-9]{64}$/),
+  snapshot_uuid: z.string().uuid(),
+  sequence: z.number().int().nonnegative(),
+  digest: z.string().trim().regex(/^[a-fA-F0-9]{64}$/),
+  destructive: z.boolean().default(false),
   assets: z.array(assetSchema).max(500),
 }).strict().superRefine((body, ctx) => {
   const seen = new Set<string>();
@@ -46,6 +51,13 @@ const syncResultSchema = z.object({
   added: z.number().int().nonnegative(),
   updated: z.number().int().nonnegative(),
   stale: z.number().int().nonnegative(),
+});
+
+const syncValidationSchema = z.object({
+  status: z.string(),
+  snapshot_id: z.string().optional(),
+  detail: z.unknown().optional(),
+  reason: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -67,8 +79,37 @@ export async function POST(req: NextRequest) {
       return jsonPrivate({ error: "validation_failed", requestId: id, failures }, { status: 422 });
     }
 
+    const db = getSupabaseAdmin();
+    const validation = await db.rpc("brain_validate_sync", {
+      p_bot_name: parsed.data.bot,
+      p_credential_hash: parsed.data.credential_hash.toLowerCase(),
+      p_snapshot_uuid: parsed.data.snapshot_uuid,
+      p_sequence: parsed.data.sequence,
+      p_digest: parsed.data.digest.toLowerCase(),
+      p_asset_count: parsed.data.assets.length,
+      p_is_destructive: parsed.data.destructive,
+    });
+    if (validation.error) {
+      console.error(JSON.stringify({ level: "error", event: "sync_validation_failed", requestId: id, actor: parsed.data.bot }));
+      return jsonPrivate({
+        error: "sync_validation_failed",
+        requestId: id,
+        failures: [{ code: "sync_validation_failed", message: "The inventory snapshot could not be validated" }],
+      }, { status: 500 });
+    }
+    const validationResult = syncValidationSchema.safeParse(validation.data);
+    if (!validationResult.success || validationResult.data.status !== "accepted") {
+      return jsonPrivate({
+        error: "sync_rejected",
+        status: validationResult.success ? validationResult.data.status : "invalid_validation_result",
+        detail: validationResult.success ? validationResult.data.detail ?? validationResult.data.reason : undefined,
+        requestId: id,
+        failures: [{ code: "sync_rejected", message: "The inventory snapshot was rejected before mutation" }],
+      }, { status: 409 });
+    }
+
     const assets = parsed.data.assets.map((asset) => ({ ...asset, owner: parsed.data.bot }));
-    const { data, error } = await getSupabaseAdmin().rpc("brain_sync_inventory", {
+    const { data, error } = await db.rpc("brain_sync_inventory", {
       p_agent: parsed.data.bot,
       p_assets: assets,
       p_request_id: id,

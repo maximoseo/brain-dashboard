@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { authorizeRead } from "@/lib/api-auth";
 import { jsonPrivate, logRequest, requestId } from "@/lib/http";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
@@ -15,6 +16,9 @@ export async function GET(req: NextRequest) {
     return jsonPrivate({ status: "ok", check: "liveness", timestamp: new Date().toISOString(), requestId: id });
   }
 
+  const auth = await authorizeRead(req);
+  if (!auth.ok) return auth.response;
+
   const database: "up" | "down" = await (async () => {
     try {
       const { error } = await getSupabaseAdmin().from("brain_bots").select("id", { head: true, count: "exact" }).limit(1);
@@ -24,7 +28,6 @@ export async function GET(req: NextRequest) {
     }
   })();
 
-  // Schema compatibility check
   let schemaVersion = 0;
   if (database === "up") {
     try {

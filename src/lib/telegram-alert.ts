@@ -67,6 +67,14 @@ const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 const dedupeMap = new Map<string, number>();
 const DEDUPE_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
 
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
 function checkRateLimit(dashboard: string): boolean {
   const now = Date.now();
   const timestamps = rateLimitMap.get(dashboard) || [];
@@ -99,17 +107,17 @@ function formatMessage(payload: AlertPayload): string {
   const label = SEVERITY_LABEL[payload.severity];
   const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
   
-  let msg = `${emoji} [${payload.dashboard}] — ${label}\n\n`;
-  msg += `📋 ${payload.title}\n\n`;
-  msg += `📝 What happened:\n${payload.details}\n\n`;
-  msg += `🌐 Site: ${payload.site}\n`;
+  let msg = `${emoji} [${escapeHtml(payload.dashboard)}] — ${label}\n\n`;
+  msg += `📋 ${escapeHtml(payload.title)}\n\n`;
+  msg += `📝 What happened:\n${escapeHtml(payload.details)}\n\n`;
+  msg += `🌐 Site: ${escapeHtml(payload.site)}\n`;
   
   if (payload.component) {
-    msg += `📍 Component: ${payload.component}\n`;
+    msg += `📍 Component: ${escapeHtml(payload.component)}\n`;
   }
   
   if (payload.action) {
-    msg += `\n⚡ Suggested action:\n${payload.action}\n`;
+    msg += `\n⚡ Suggested action:\n${escapeHtml(payload.action)}\n`;
   }
   
   if (payload.context) {
@@ -117,7 +125,7 @@ function formatMessage(payload: AlertPayload): string {
     const ctx = payload.context.length > 500 
       ? payload.context.slice(0, 500) + '...' 
       : payload.context;
-    msg += `\n🔍 Context:\n\`${ctx}\`\n`;
+    msg += `\n🔍 Context:\n<code>${escapeHtml(ctx)}</code>\n`;
   }
   
   msg += `\n🕐 ${timestamp}`;

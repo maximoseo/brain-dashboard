@@ -61,14 +61,29 @@ async function probeDashboard(url: string): Promise<Omit<ProbeResult, "dashboard
   try {
     const response = await fetch(url, {
       method: "GET",
-      redirect: "follow",
+      redirect: "manual",
       signal: controller.signal,
       headers: { "User-Agent": "BrainDashboard-Probe/1.0" },
     });
     const latency = Date.now() - started;
     const httpStatus = response.status;
 
-    if (httpStatus >= 200 && httpStatus < 400) {
+    if (httpStatus >= 300 && httpStatus < 400) {
+      const location = response.headers.get("location");
+      if (!location) return { status: "degraded", http_status: httpStatus, latency_ms: latency, detail: { error: "redirect_without_location" } };
+      let redirectUrl: URL;
+      try {
+        redirectUrl = new URL(location, parsed);
+      } catch {
+        return { status: "dns_error", http_status: httpStatus, latency_ms: latency, detail: { error: "invalid_redirect" } };
+      }
+      if (redirectUrl.protocol !== "https:" || isPrivateHost(redirectUrl.hostname) || !isAllowedHost(redirectUrl.hostname)) {
+        return { status: "dns_error", http_status: httpStatus, latency_ms: latency, detail: { error: "blocked_redirect" } };
+      }
+      return { status: "degraded", http_status: httpStatus, latency_ms: latency, detail: { redirect: redirectUrl.origin } };
+    }
+
+    if (httpStatus >= 200 && httpStatus < 300) {
       return { status: "online", http_status: httpStatus, latency_ms: latency, detail: {} };
     }
     if (httpStatus === 401 || httpStatus === 403) {
@@ -110,8 +125,7 @@ export async function POST(req: NextRequest) {
     const db = getSupabaseAdmin();
     const { data: dashboards, error } = await db
       .from("brain_dashboards")
-      .select("id, name, url, status")
-      .eq("status", "live");
+      .select("id, name, url, status");
 
     if (error) {
       return jsonPrivate({ error: "db_unavailable", detail: error.message, requestId: id }, { status: 503 });

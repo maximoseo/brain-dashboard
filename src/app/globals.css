@@ -230,13 +230,13 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 .activity-timeline li::before { content: ""; width: 1px; position: absolute; top: 42px; bottom: 0; left: 20px; background: var(--border); }
 .activity-timeline li:last-child::before { display: none; }
 .timeline-icon { width: 42px; height: 42px; z-index: 1; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-2); color: #b7afff; }
-.activity-timeline a { margin-bottom: 12px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1); text-decoration: none; }
+.activity-timeline a { display: block; min-height: 44px; margin-bottom: 12px; padding: 16px 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1); text-decoration: none; }
 .activity-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .activity-header time { color: var(--muted); font-size: 11px; }
 .activity-timeline h2 { margin-top: 10px; }
 .activity-timeline p { margin-top: 4px; color: var(--muted); }
 
-.login-page { min-height: 100vh; padding: 20px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 0%, rgba(124, 111, 247, .14), transparent 38%), var(--bg); }
+.login-page { min-height: 100dvh; padding: 20px; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at 50% 0%, rgba(124, 111, 247, .14), transparent 38%), var(--bg); }
 .login-card { width: min(100%, 420px); padding: clamp(26px, 7vw, 42px); border: 1px solid var(--border); border-radius: var(--radius-lg); background: rgba(16, 21, 29, .94); box-shadow: var(--shadow); }
 .login-brand { margin-bottom: 28px; text-align: center; }
 .login-brand h1 { font-size: 28px; }
@@ -267,7 +267,7 @@ input:focus, select:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgb
 }
 
 @media (max-width: 767px) {
-  body { padding-bottom: 0; overflow: hidden; }
+  body { padding-bottom: 0; }
   .app-shell { height: 100dvh; overflow: hidden; }
   .app-column { height: calc(100dvh - 68px - env(safe-area-inset-bottom)); display: flex; flex-direction: column; overflow: hidden; }
   .topbar { height: 60px; padding: 0 16px; flex: none; }

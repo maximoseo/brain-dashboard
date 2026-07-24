@@ -6,7 +6,7 @@ import { jsonPrivate, requestId, serverError } from "@/lib/http";
 import { safeRedirectPath } from "@/lib/redirect";
 import { hashIdentifier, issueSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { resolveIdentity, verifyTotp, hasMinRole } from "@/lib/identity-provider";
+import { resolveIdentity, verifyIdentityPassword, verifyTotp, hasMinRole } from "@/lib/identity-provider";
 
 const loginSchema = z.object({
   email: z.string().email().max(320).optional(),
@@ -78,10 +78,10 @@ export async function POST(req: NextRequest) {
         return jsonPrivate({ error: "invalid_credentials", requestId: id }, { status: 401 });
       }
 
-      // Verify password: stored as HMAC(identity_id:password, session_secret) in meta
-      const expectedHash = (identity as any).mfa_secret; // reuse field check below
-      // For now, compare against BRAIN_ACCESS_PASSWORD as fallback until per-identity passwords are set
-      const passwordOk = passwordMatches(parsed.data.password, env.BRAIN_ACCESS_PASSWORD);
+      // Verify against the identity's own bcrypt hash. An identity with no hash
+      // provisioned yet cannot log in — it must never fall back to the shared
+      // BRAIN_ACCESS_PASSWORD, or every named user would silently share one credential.
+      const passwordOk = await verifyIdentityPassword(parsed.data.password, identity.password_hash);
       if (!passwordOk) {
         await rateLimit(fingerprint, false);
         await auditLogin(identity.email, "failure", id, identity.id);

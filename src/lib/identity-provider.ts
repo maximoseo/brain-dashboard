@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { getSupabaseAdmin } from "./supabase";
 
@@ -13,6 +14,8 @@ export interface Identity {
   disabled: boolean;
 }
 
+const BCRYPT_COST_FACTOR = 12;
+
 const identityRowSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
@@ -20,16 +23,19 @@ const identityRowSchema = z.object({
   role: z.enum(["viewer", "auditor", "operator", "admin"]),
   mfa_enrolled: z.boolean(),
   mfa_secret: z.string().nullable(),
+  password_hash: z.string().nullable(),
   disabled: z.boolean(),
 });
 
 /**
  * Look up an identity by email. Returns null if not found or disabled.
  */
-export async function resolveIdentity(email: string): Promise<(Identity & { mfa_secret: string | null }) | null> {
+export async function resolveIdentity(
+  email: string,
+): Promise<(Identity & { mfa_secret: string | null; password_hash: string | null }) | null> {
   const { data, error } = await getSupabaseAdmin()
     .from("brain_identities")
-    .select("id, email, display_name, role, mfa_enrolled, mfa_secret, disabled")
+    .select("id, email, display_name, role, mfa_enrolled, mfa_secret, password_hash, disabled")
     .ilike("email", email.trim())
     .single();
 
@@ -42,11 +48,21 @@ export async function resolveIdentity(email: string): Promise<(Identity & { mfa_
 }
 
 /**
- * Verify password against the identity's stored hash.
- * Passwords are stored as HMAC-SHA256(password, BRAIN_SESSION_SECRET) — never plaintext.
+ * Hash a password for storage in `brain_identities.password_hash`.
+ * Use this when provisioning or resetting a named identity's credential.
  */
-export function verifyIdentityPassword(password: string, identityId: string, secret: string): string {
-  return createHmac("sha256", secret).update(`${identityId}:${password}`).digest("hex");
+export async function hashIdentityPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, BCRYPT_COST_FACTOR);
+}
+
+/**
+ * Verify a password against the identity's stored bcrypt hash.
+ * Returns false (never throws) when the identity has no hash provisioned yet —
+ * callers must not fall back to any shared/global credential in that case.
+ */
+export async function verifyIdentityPassword(password: string, storedHash: string | null): Promise<boolean> {
+  if (!storedHash) return false;
+  return bcrypt.compare(password, storedHash);
 }
 
 /**
@@ -66,7 +82,6 @@ export function verifyTotp(code: string, secret: string, windowSeconds = 30, dri
 }
 
 function generateTotp(base32Secret: string, counter: number): string {
-  const { createHmac } = require("node:crypto");
   const key = base32Decode(base32Secret);
   const buf = Buffer.alloc(8);
   buf.writeBigUInt64BE(BigInt(counter));

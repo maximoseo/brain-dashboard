@@ -15,6 +15,13 @@ npm run dev
 
 Apply `supabase/migrations/20260721093000_security_and_sync_integrity.sql` before starting this version. Startup fails closed when required configuration is missing.
 
+Apply `supabase/migrations/20260723170000_identity_password_hash.sql` to add per-identity bcrypt password storage. Named identities (rows in `brain_identities`) cannot log in until a hash is provisioned — there is no fallback to the shared `BRAIN_ACCESS_PASSWORD`. Provision or reset a hash with:
+
+```bash
+SUPABASE_URL=... SUPABASE_SERVICE_KEY=... \
+  node scripts/set-identity-password.mjs ops@maximo-seo.ai 'a-strong-unique-password'
+```
+
 ## Required environment
 
 | Variable | Purpose |

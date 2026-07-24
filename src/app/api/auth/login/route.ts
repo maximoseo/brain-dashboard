@@ -6,7 +6,7 @@ import { jsonPrivate, requestId, serverError } from "@/lib/http";
 import { safeRedirectPath } from "@/lib/redirect";
 import { hashIdentifier, issueSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { resolveIdentity, verifyIdentityPassword, verifyTotp, hasMinRole } from "@/lib/identity-provider";
+import { resolveIdentity, verifyIdentityPassword, verifyTotp } from "@/lib/identity-provider";
 
 const loginSchema = z.object({
   email: z.string().email().max(320).optional(),

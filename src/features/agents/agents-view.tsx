@@ -25,7 +25,13 @@ export function AgentsView() {
           {agents.map((agent) => {
             const status = normalizeStatus(agent.status);
             const healthy = ["online", "healthy", "active"].includes(status);
-            return <article className="entity-card agent-card" key={agent.id}><div className="entity-card-header"><span className="entity-icon"><Icon name="agent" size={22} /></span><span className={`status-badge ${healthy ? "success" : status === "offline" ? "danger" : "warning"}`}><span className="status-indicator" />{titleCase(status)}</span></div><div><h2>{agent.name}</h2><p className="entity-subtitle">{titleCase(agent.kind || "agent")}</p></div><dl className="entity-details stacked"><div><dt>Model</dt><dd>{agent.model || "Not reported"}</dd></div><div><dt>Last signal</dt><dd title={formatDate(agent.last_seen)}>{formatRelative(agent.last_seen)}</dd></div><div><dt>Runtime endpoint</dt><dd>{isSafeExternalUrl(agent.base_url) ? <a className="external-link" href={agent.base_url} target="_blank" rel="noopener noreferrer">Open endpoint <Icon name="external" size={14} /></a> : "Not available"}</dd></div></dl></article>;
+            return (
+              <article className="entity-card agent-card" key={agent.id}>
+                <div className="entity-card-header"><span className="entity-icon"><Icon name="agent" size={22} /></span><span className={`status-badge ${healthy ? "success" : status === "offline" ? "danger" : "warning"}`}><span className="status-indicator" aria-hidden="true" />{titleCase(status)}</span></div>
+                <div><h2>{agent.name}</h2><p className="entity-subtitle">{titleCase(agent.kind || "agent")}</p></div>
+                <dl className="entity-details stacked"><div><dt>Model</dt><dd>{agent.model || "Not reported"}</dd></div><div><dt>Last signal</dt><dd title={formatDate(agent.last_seen)}>{formatRelative(agent.last_seen)}</dd></div><div><dt>Runtime endpoint</dt><dd>{isSafeExternalUrl(agent.base_url) ? <a className="external-link" href={agent.base_url} target="_blank" rel="noopener noreferrer" aria-label={`Open endpoint for ${agent.name} in a new tab`}>Open endpoint <span className="sr-only">in a new tab</span> <Icon name="external" size={14} /></a> : "Not available"}</dd></div></dl>
+              </article>
+            );
           })}
         </div>
       )}

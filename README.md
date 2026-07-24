@@ -13,7 +13,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Apply `supabase/migrations/20260721093000_security_and_sync_integrity.sql` before starting this version. Startup fails closed when required configuration is missing.
+Apply every file in `supabase/migrations/` in lexical order before starting this version. Startup fails closed when required configuration is missing, and readiness checks fail closed when the database schema is older than the required version.
 
 ## Required environment
 
@@ -49,8 +49,8 @@ Credentials in query strings, request bodies, and `x-api-key` are not accepted. 
 | `/api/memory` | POST | memory write | Upsert a memory fact |
 | `/api/knowledge` | GET | session or read | Federated search with source outcomes |
 | `/api/processes` | GET | session or read | Documented processes |
-| `/api/sync` | POST | sync write | Atomic full-snapshot inventory sync |
-| `/api/health?mode=ready` | GET | none | Dependency readiness |
+| `/api/sync` | POST | sync write + agent sync credential hash | Atomic full-snapshot inventory sync with replay/destructive guards |
+| `/api/health?mode=ready` | GET | session or read | Dependency readiness |
 | `/api/health?mode=live` | GET | none | Process liveness |
 | `/api/auth/login` | POST | none | Rate-limited operator login |
 | `/api/auth/logout` | POST | same-origin session | Revoke current session |
@@ -63,7 +63,7 @@ Credentials in query strings, request bodies, and `x-api-key` are not accepted. 
 
 ### Agent inventory sync
 
-A sync is a complete snapshot for one agent. Missing records owned by that agent become stale. The request is validated and applied in one PostgreSQL transaction.
+A sync is a complete snapshot for one agent. Missing records owned by that agent become stale. The request is validated, replay-checked, destructive-drop checked, and then applied through PostgreSQL RPCs. Each agent must have an active row in `brain_sync_credentials`; clients send the credential hash, monotonic sequence, snapshot UUID, digest, and an explicit destructive flag when intentionally submitting a snapshot that drops more than 50% of the previous asset count.
 
 ```bash
 curl -X POST https://brain-dashboard-maximo-seo.vercel.app/api/sync \
@@ -71,6 +71,11 @@ curl -X POST https://brain-dashboard-maximo-seo.vercel.app/api/sync \
   -H "Content-Type: application/json" \
   -d '{
     "bot": "hermes",
+    "credential_hash": "64-char lowercase sha256 hex",
+    "snapshot_uuid": "11111111-1111-4111-8111-111111111111",
+    "sequence": 42,
+    "digest": "64-char lowercase sha256 hex",
+    "destructive": false,
     "assets": [
       {"type": "skill", "name": "my-skill", "description": "..."},
       {"type": "cli", "name": "my-tool", "version": "1.0.0"}
@@ -78,7 +83,22 @@ curl -X POST https://brain-dashboard-maximo-seo.vercel.app/api/sync \
   }'
 ```
 
-Allowed asset types are `skill`, `plugin`, `cli`, `mcp`, and `design`. Invalid rows return HTTP `422` with a `failures` array; database transaction failures return HTTP `500` and do not report success.
+Allowed asset types are `skill`, `plugin`, `cli`, `mcp`, and `design`. Invalid rows return HTTP `422` with a `failures` array. Replay, stale sequence, invalid credential, and unsafe destructive snapshots return HTTP `409` before inventory mutation. Database transaction failures return HTTP `500` and do not report success.
+
+### Health checks
+
+Use unauthenticated liveness for load balancers and uptime checks:
+
+```http
+GET /api/health?mode=live
+```
+
+Use authenticated readiness for operators and CI so dependency/schema details are not public:
+
+```http
+GET /api/health?mode=ready
+Authorization: Bearer ***
+```
 
 ## Verification
 

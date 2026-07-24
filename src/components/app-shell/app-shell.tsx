@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon, type IconName } from "@/components/ui/icon";
 
 interface NavigationItem {
@@ -52,14 +52,40 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [moreOpen, setMoreOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
   const current = navigation.find((item) => isCurrent(pathname, item.href));
+
+  function closeMenu() {
+    setMoreOpen(false);
+    moreButtonRef.current?.focus();
+  }
 
   useEffect(() => setMoreOpen(false), [pathname]);
   useEffect(() => {
     if (!moreOpen) return;
-    const close = (event: KeyboardEvent) => event.key === "Escape" && setMoreOpen(false);
-    window.addEventListener("keydown", close);
-    return () => window.removeEventListener("keydown", close);
+    closeButtonRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeMenu();
+      }
+      if (event.key !== "Tab") return;
+      const menu = document.getElementById("mobile-more-menu");
+      const focusable = Array.from(menu?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? []);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable.at(-1) ?? first;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   }, [moreOpen]);
 
   async function signOut() {
@@ -86,8 +112,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             {navigation.filter((item) => item.secondary).map((item) => <NavigationLink item={item} pathname={pathname} key={item.href} />)}
           </div>
         </nav>
-        <div className="sidebar-footer"><span className="live-dot" />Connected workspace</div>
-        <button className="nav-link sign-out-link" type="button" onClick={signOut} disabled={signingOut}>
+        <div className="sidebar-footer"><span className="live-dot" aria-hidden="true" />Connected workspace</div>
+        <button className="nav-link sign-out-link" type="button" onClick={signOut} disabled={signingOut} aria-label={signingOut ? "Signing out" : "Sign out"}>
           <Icon name="logout" size={20} /><span>{signingOut ? "Signing out…" : "Sign out"}</span>
         </button>
       </aside>
@@ -96,26 +122,26 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="topbar">
           <div className="mobile-brand"><Brand /></div>
           <div className="topbar-context"><span className="topbar-label">Workspace</span><strong>{current?.label ?? "Brain Dashboard"}</strong></div>
-          <div className="freshness"><span className="live-dot" /><span>Live data</span></div>
+          <div className="freshness"><span className="live-dot" aria-hidden="true" /><span>Live data</span></div>
         </header>
         <main id="main-content" className="content" tabIndex={-1}>{children}</main>
       </div>
 
       <nav className="mobile-bottom-nav" aria-label="Primary navigation">
         {mobilePrimary.map((item) => <NavigationLink item={item} pathname={pathname} compact key={item.href} />)}
-        <button className={`nav-link compact${moreOpen ? " active" : ""}`} type="button" aria-expanded={moreOpen} aria-controls="mobile-more-menu" onClick={() => setMoreOpen((open) => !open)}>
+        <button ref={moreButtonRef} className={`nav-link compact${moreOpen ? " active" : ""}`} type="button" aria-expanded={moreOpen} aria-controls="mobile-more-menu" onClick={() => setMoreOpen((open) => !open)}>
           <Icon name="menu" size={20} /><span>More</span>
         </button>
       </nav>
 
       {moreOpen && (
-        <div className="mobile-menu-layer" id="mobile-more-menu">
-          <button className="menu-backdrop" type="button" aria-label="Close navigation menu" onClick={() => setMoreOpen(false)} />
+        <div className="mobile-menu-layer" id="mobile-more-menu" role="dialog" aria-modal="true" aria-label="More navigation">
+          <button className="menu-backdrop" type="button" aria-label="Close navigation menu" onClick={closeMenu} />
           <section className="mobile-menu" aria-label="More navigation">
-            <div className="mobile-menu-header"><div><p className="eyebrow">Navigate</p><h2>More</h2></div><button className="icon-button" type="button" aria-label="Close menu" onClick={() => setMoreOpen(false)}><Icon name="x" /></button></div>
+            <div className="mobile-menu-header"><div><p className="eyebrow">Navigate</p><h2>More</h2></div><button ref={closeButtonRef} className="icon-button" type="button" aria-label="Close menu" onClick={closeMenu}><Icon name="x" /></button></div>
             <nav>
-              {navigation.slice(4).map((item) => <NavigationLink item={item} pathname={pathname} onNavigate={() => setMoreOpen(false)} key={item.href} />)}
-              <button className="nav-link sign-out-link" type="button" onClick={signOut} disabled={signingOut}>
+              {navigation.slice(4).map((item) => <NavigationLink item={item} pathname={pathname} onNavigate={closeMenu} key={item.href} />)}
+              <button className="nav-link sign-out-link" type="button" onClick={signOut} disabled={signingOut} aria-label={signingOut ? "Signing out" : "Sign out"}>
                 <Icon name="logout" size={20} /><span>{signingOut ? "Signing out…" : "Sign out"}</span>
               </button>
             </nav>

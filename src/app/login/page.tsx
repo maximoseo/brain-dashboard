@@ -81,6 +81,8 @@ function LoginForm() {
               autoComplete="email"
               autoFocus
               dir="ltr"
+              aria-invalid={!!error && !mfaRequired}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </label>
           <label className="field-group" htmlFor="password">
@@ -95,6 +97,8 @@ function LoginForm() {
               autoComplete="current-password"
               required
               dir="ltr"
+              aria-invalid={!!error && !mfaRequired}
+              aria-describedby={error ? "login-error" : undefined}
             />
           </label>
           {mfaRequired && (
@@ -114,10 +118,12 @@ function LoginForm() {
                 autoFocus
                 dir="ltr"
                 style={{ letterSpacing: "0.3em", textAlign: "center" }}
+                aria-invalid={!!error}
+                aria-describedby={error ? "login-error" : undefined}
               />
             </label>
           )}
-          <div className="login-message" role="alert" aria-live="assertive">{error}</div>
+          <div id="login-error" className="login-message" role="alert" aria-live="assertive">{error}</div>
           <button className="button primary full-width" type="submit" disabled={loading || !password}>
             {loading ? <><span className="spinner small" aria-hidden="true" />{mfaRequired ? "Verifying…" : "Signing in…"}</> : mfaRequired ? "Verify" : "Sign in"}
           </button>

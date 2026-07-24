@@ -66,7 +66,6 @@ export function verifyTotp(code: string, secret: string, windowSeconds = 30, dri
 }
 
 function generateTotp(base32Secret: string, counter: number): string {
-  const { createHmac } = require("node:crypto");
   const key = base32Decode(base32Secret);
   const buf = Buffer.alloc(8);
   buf.writeBigUInt64BE(BigInt(counter));

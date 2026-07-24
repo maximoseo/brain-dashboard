@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getServerEnv } from "./env";
 import { getSupabaseAdmin } from "./supabase";
 
-export const SESSION_COOKIE = "brain_session";
+export const SESSION_COOKIE = "__Host-brain_session";
 export const SESSION_TTL_SECONDS = 24 * 60 * 60;
 export const SESSION_IDLE_TTL_SECONDS = 2 * 60 * 60;
 const SESSION_TOUCH_INTERVAL_SECONDS = 5 * 60;

@@ -1,10 +1,14 @@
 import { NextRequest } from "next/server";
+import { authorizeRead } from "@/lib/api-auth";
 import { jsonPrivate, requestId, serverError } from "@/lib/http";
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
   const id = requestId(req);
   try {
+    const auth = await authorizeRead(req);
+    if (!auth.ok) return auth.response;
+
     const { data, error } = await getSupabaseAdmin().rpc("brain_overview");
     if (error) {
       return jsonPrivate({ error: "overview_unavailable", detail: error.message, requestId: id }, { status: 503 });

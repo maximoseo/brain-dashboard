@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "./env";
 import { jsonPrivate } from "./http";
-import { verifyActiveSession } from "./session";
+import { SESSION_COOKIE, verifyActiveSession } from "./session";
 
 export type AuthScope = "read" | "sync:write" | "memory:write";
 export interface AuthContext {
@@ -35,7 +35,7 @@ function scopeForToken(token: string): AuthScope | null {
 }
 
 export async function authorizeRead(req: NextRequest): Promise<AuthResult> {
-  const session = await verifyActiveSession(req.cookies.get("brain_session")?.value);
+  const session = await verifyActiveSession(req.cookies.get(SESSION_COOKIE)?.value);
   if (session) return { ok: true, auth: { actor: "operator", method: "session", scope: "read" } };
 
   const token = bearerToken(req);

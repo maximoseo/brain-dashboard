@@ -6,7 +6,7 @@ import { jsonPrivate, requestId, serverError } from "@/lib/http";
 import { safeRedirectPath } from "@/lib/redirect";
 import { hashIdentifier, issueSession, SESSION_COOKIE, SESSION_TTL_SECONDS } from "@/lib/session";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { resolveIdentity, verifyTotp, hasMinRole } from "@/lib/identity-provider";
+import { resolveIdentity, verifyTotp } from "@/lib/identity-provider";
 
 const loginSchema = z.object({
   email: z.string().email().max(320).optional(),
@@ -78,8 +78,6 @@ export async function POST(req: NextRequest) {
         return jsonPrivate({ error: "invalid_credentials", requestId: id }, { status: 401 });
       }
 
-      // Verify password: stored as HMAC(identity_id:password, session_secret) in meta
-      const expectedHash = (identity as any).mfa_secret; // reuse field check below
       // For now, compare against BRAIN_ACCESS_PASSWORD as fallback until per-identity passwords are set
       const passwordOk = passwordMatches(parsed.data.password, env.BRAIN_ACCESS_PASSWORD);
       if (!passwordOk) {
@@ -110,7 +108,7 @@ export async function POST(req: NextRequest) {
       const response = jsonPrivate({ ok: true, redirect: safeRedirectPath(parsed.data.next), user: { email: identity.email, role: identity.role, name: identity.display_name }, requestId: id });
       response.cookies.set(SESSION_COOKIE, session.token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+        secure: true,
         sameSite: "strict",
         maxAge: SESSION_TTL_SECONDS,
         path: "/",
@@ -132,7 +130,7 @@ export async function POST(req: NextRequest) {
     const response = jsonPrivate({ ok: true, redirect: safeRedirectPath(parsed.data.next), requestId: id });
     response.cookies.set(SESSION_COOKIE, session.token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true,
       sameSite: "strict",
       maxAge: SESSION_TTL_SECONDS,
       path: "/",
